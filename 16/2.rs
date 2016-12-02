@@ -29,14 +29,10 @@ fn process(row: &str, x0: i32, y0: i32) -> (i32, i32) {
 
 fn main() {
     let src = readfile(&std::env::args().nth(1).unwrap());
-    let mut x = 1i32;
-    let mut y = 1i32;
+    let mut xy = (1i32, 1i32);
     for row in src.split("\n") {
         if row != "" {
-            let (x2, y2) = process(row, x, y);
-            // ughh??
-            x = x2;
-            y = y2;
+            xy = process(row, xy.0, xy.1);
         }
     }
 }
