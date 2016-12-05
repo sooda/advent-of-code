@@ -21,16 +21,25 @@ fn sector_id(row: &str) -> u32 {
     // aaaaa-bbb-z-y-x-123[abxyz]
     let re = Regex::new(r"((?:[a-z]+-)*[a-z]+)+-(\d+)\[([a-z]+)\]").unwrap();
     let cap = re.captures(row).unwrap();
-    let encrypted_name = cap.at(1).unwrap();
+    let encrypted_name = cap.at(1).unwrap().chars().filter(|&x| x != '-').collect::<String>();
     let sector_id = cap.at(2).unwrap().parse::<u32>().unwrap();
     let checksum = cap.at(3).unwrap();
+    let decrypted = encrypted_name.chars().map(
+        |x| (
+            ('a' as u32) + (
+                ((x as u32) - ('a' as u32) + sector_id) % 26
+                )
+            ) as u8 as char).collect::<String>();
+
+    // found this manually, ha
+    if decrypted == "northpoleobjectstorage" {
+        println!("{}", sector_id);
+    }
 
     // first collect alphas into map
     let mut freqs = HashMap::new();
     for c in encrypted_name.chars() {
-        if c != '-' {
             *freqs.entry(c).or_insert(0) += 1;
-        }
     }
 
     // collect into vec to sort and stuff
