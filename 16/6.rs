@@ -11,7 +11,7 @@ fn readfile(name: &str) -> String {
     s
 }
 
-fn message(rows: Vec<&str>) -> String {
+fn message(rows: Vec<&str>, part_one: bool) -> String {
     let mut allcounts = vec![HashMap::new(); rows[0].len()];
 
     // count frequencies per position
@@ -27,7 +27,11 @@ fn message(rows: Vec<&str>) -> String {
             let per_char = one_hash.iter().collect::<Vec<_>>();
             // flip chars and counts
             let mut per_count = per_char.iter().map(|&(x, y)| (y, x)).collect::<Vec<_>>();
-            per_count.sort_by(|a, b| b.0.cmp(a.0));
+            if part_one {
+                per_count.sort_by(|a, b| b.0.cmp(a.0));
+            } else {
+                per_count.sort();
+            }
 
             // most common
             *per_count[0].1
@@ -39,7 +43,8 @@ fn message(rows: Vec<&str>) -> String {
 fn main() {
     let src = readfile(&std::env::args().nth(1).unwrap());
 
-    println!("{}", message(src.trim().split("\n").collect()));
+    println!("{}", message(src.trim().split("\n").collect(), true));
+    println!("{}", message(src.trim().split("\n").collect(), false));
 }
 
 
