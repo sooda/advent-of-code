@@ -44,7 +44,7 @@ fn assign(bot: &mut Bot, val: usize) {
     }
 }
 
-fn action(input: &str, bots: &mut Vec<Bot>) {
+fn action(input: &str, bots: &mut Vec<Bot>, outs: &mut Vec<usize>) {
     let re_goesto = Regex::new(r"value (\d+) goes to bot (\d+)").unwrap();
     let re_gives = Regex::new(r"bot (\d+) gives low to (bot|output) (\d+) and high to (bot|output) (\d+)").unwrap();
     if let Some(cap) = re_goesto.captures(input) {
@@ -67,16 +67,25 @@ fn action(input: &str, bots: &mut Vec<Bot>) {
             bots.resize(bot_num + 1, Bot { lo: 0, hi: 0, lo_dest: Dest::Bot(0), hi_dest: Dest::Bot(0) });
         }
 
-        bots[bot_num].lo_dest =
-            if lo_dest_type == "bot" { Dest::Bot(lo_dest) } else { Dest::Output(lo_dest) };
-        bots[bot_num].hi_dest =
-            if hi_dest_type == "bot" { Dest::Bot(hi_dest) } else { Dest::Output(hi_dest) };
+        if lo_dest_type == "bot" {
+            bots[bot_num].lo_dest = Dest::Bot(lo_dest);
+        } else {
+            bots[bot_num].lo_dest = Dest::Output(lo_dest);
+            if lo_dest > outs.len() { outs.resize(lo_dest + 1, 0); }
+        }
+
+        if hi_dest_type == "bot" {
+            bots[bot_num].hi_dest = Dest::Bot(hi_dest);
+        } else {
+            bots[bot_num].hi_dest = Dest::Output(hi_dest);
+            if hi_dest > outs.len() { outs.resize(hi_dest + 1, 0); }
+        }
     } else {
         unreachable!()
     }
 }
 
-fn evaluate(bots: &mut Vec<Bot>) {
+fn evaluate(bots: &mut Vec<Bot>, outs: &mut Vec<usize>) {
     let mut handled = vec![false; bots.len()];
     let mut remaining = bots.len();
     while remaining > 0 {
@@ -97,16 +106,16 @@ fn evaluate(bots: &mut Vec<Bot>) {
                     remaining -= 1;
                     // can give only when both lo and hi are known
                     if let Dest::Bot(d) = b.lo_dest {
-                        if b.lo != 0 {
-                            lo = b.lo;
-                            lod = d;
-                        }
+                        lo = b.lo;
+                        lod = d;
+                    } else if let Dest::Output(o) = b.lo_dest {
+                        outs[o] = b.lo;
                     }
                     if let Dest::Bot(d) = b.hi_dest {
-                        if b.hi != 0 {
-                            hi = b.hi;
-                            hid = d;
-                        }
+                        hi = b.hi;
+                        hid = d;
+                    } else if let Dest::Output(o) = b.hi_dest {
+                        outs[o] = b.hi;
                     }
                 }
                 (lo, lod, hi, hid)
@@ -124,19 +133,22 @@ fn evaluate(bots: &mut Vec<Bot>) {
                 assign(&mut bots[hid], hi);
             }
         }
-
     }
 }
 
 fn main() {
     let src = readfile(&std::env::args().nth(1).unwrap());
     let mut bots = Vec::new();
+    let mut outs = Vec::new();
     for row in src.trim().split("\n") {
-        action(row, &mut bots);
+        action(row, &mut bots, &mut outs);
     }
-    evaluate(&mut bots);
+    evaluate(&mut bots, &mut outs);
     for (i, b) in bots.iter().enumerate() {
         println!("bot {} compares {} with {}", i, b.lo, b.hi);
+    }
+    for (i, o) in outs.iter().enumerate() {
+        println!("output {} has value {}", i, o);
     }
 }
 
