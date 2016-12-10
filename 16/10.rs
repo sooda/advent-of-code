@@ -88,6 +88,7 @@ fn action(input: &str, bots: &mut Vec<Bot>, outs: &mut Vec<usize>) {
 fn evaluate(bots: &mut Vec<Bot>, outs: &mut Vec<usize>) {
     let mut handled = vec![false; bots.len()];
     let mut remaining = bots.len();
+    // breadth-first-style evaluation of the "giving graph"
     while remaining > 0 {
         // cannot iter() because that would borrow and thus couldn't mutate
         for i in 0..bots.len() {
@@ -95,42 +96,36 @@ fn evaluate(bots: &mut Vec<Bot>, outs: &mut Vec<usize>) {
                 continue;
             }
 
-            let (lo, lod, hi, hid) = {
-                let b = &bots[i];
-                println!("{} {:?}", i, b);
-                let mut lo = 0; let mut lod = 0;
-                let mut hi = 0; let mut hid = 0;
-                // fully filled values, this is handled now
-                if b.lo != 0 && b.hi != 0 {
-                    handled[i] = true;
-                    remaining -= 1;
-                    // can give only when both lo and hi are known
-                    if let Dest::Bot(d) = b.lo_dest {
-                        lo = b.lo;
-                        lod = d;
-                    } else if let Dest::Output(o) = b.lo_dest {
-                        outs[o] = b.lo;
-                    }
-                    if let Dest::Bot(d) = b.hi_dest {
-                        hi = b.hi;
-                        hid = d;
-                    } else if let Dest::Output(o) = b.hi_dest {
-                        outs[o] = b.hi;
-                    }
-                }
-                (lo, lod, hi, hid)
-            };
-
-            // dests are bots, not outputs? then pass values to them
-            if lo != 0 {
-                assert!(lod != i);
-                println!("{} -> {}", lo, lod);
-                assign(&mut bots[lod], lo);
+            // clone this out to please the borrow fuc..checker as some are written later
+            let b = bots[i].clone();
+            println!("{} {:?}", i, b);
+            // not yet fully filled values, so skip in this iteration
+            if b.lo == 0 || b.hi == 0 {
+                continue;
             }
-            if hi != 0 {
-                assert!(hid != i);
-                println!("{} -> {}", hi, hid);
-                assign(&mut bots[hid], hi);
+
+            // ok, propagate this node in the graph
+            handled[i] = true;
+            remaining -= 1;
+            match b.lo_dest {
+                Dest::Bot(d) => {
+                    assert!(b.lo != i);
+                    println!("{} -> {}", b.lo, d);
+                    assign(&mut bots[d], b.lo);
+                },
+                Dest::Output(o) => {
+                    outs[o] = b.lo;
+                }
+            }
+            match b.hi_dest {
+                Dest::Bot(d) => {
+                    assert!(b.hi != i);
+                    println!("{} -> {}", b.hi, d);
+                    assign(&mut bots[d], b.hi);
+                },
+                Dest::Output(o) => {
+                    outs[o] = b.hi;
+                }
             }
         }
     }
