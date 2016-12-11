@@ -1,0 +1,72 @@
+majestic diagram for visualization aid
+
+F4
+F3                     OG OM RG RM
+F2            PM    SM
+F1 E TG TM PG    SG
+
+T: thulium
+P: plutonium
+S: strontium
+O: promethium
+R: ruthenium
+
+sample:
+
+F4 .  .  .  .  .
+F3 .  .  .  LG .
+F2 .  HG .  .  .
+F1 E  .  HM .  LM
+
+w00t, got better results than 11:
+
+step 0 move generator L and chip L from third to fourth floor
+  []
+  []
+  []
+  [Generator('H'), Generator('L'), Microchip('H'), Microchip('L')]
+step 1 move generator L and chip L from second to third floor
+  []
+  []
+  [Generator('L'), Microchip('L')]
+  [Generator('H'), Microchip('H')]
+step 2 move generator L from third to second floor
+  []
+  [Generator('L'), Microchip('L')]
+  []
+  [Generator('H'), Microchip('H')]
+step 3 move generator L from fourth to third floor
+  []
+  [Microchip('L')]
+  [Generator('L')]
+  [Generator('H'), Microchip('H')]
+step 4 move chip H and generator H from third to fourth floor
+  []
+  [Microchip('L')]
+  []
+  [Generator('H'), Generator('L'), Microchip('H')]
+step 5 move generator H from fourth to third floor
+  []
+  [Microchip('L')]
+  [Generator('H'), Microchip('H')]
+  [Generator('L')]
+step 6 move both generators from third to fourth floor
+  []
+  [Microchip('L')]
+  [Microchip('H')]
+  [Generator('H'), Generator('L')]
+step 7 move chip H and generator H from second to third floor
+  []
+  [Microchip('L')]
+  [Generator('H'), Generator('L'), Microchip('H')]
+  []
+step 8 move both chips from first to second floor
+  []
+  [Generator('H'), Microchip('H'), Microchip('L')]
+  [Generator('L')]
+  []
+step 9 initial condition
+  [Microchip('H'), Microchip('L')]
+  [Generator('H')]
+  [Generator('L')]
+  []
