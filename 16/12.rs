@@ -41,9 +41,17 @@ fn action(input: &str, regs: &mut [i64; 4]) -> i64 {
 
 fn main() {
     let src = readfile(&std::env::args().nth(1).unwrap());
+    let ops = src.trim().split("\n").collect::<Vec<_>>();
+
     let mut regs = [0i64; 4];
     let mut pc = 0i64;
-    let ops = src.trim().split("\n").collect::<Vec<_>>();
+    while (pc as usize) != ops.len() {
+        pc += action(ops[pc as usize], &mut regs);
+    }
+    println!("{:?}", regs);
+
+    let mut regs = [0i64, 0i64, 1i64, 0i64];
+    let mut pc = 0i64;
     while (pc as usize) != ops.len() {
         pc += action(ops[pc as usize], &mut regs);
     }
