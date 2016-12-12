@@ -1,5 +1,4 @@
 use std::collections::vec_deque::VecDeque;
-use std::collections::HashSet;
 
 // type encodes also the name, which is an arbitrary character i chose here manually for just
 // debugging purposes
@@ -233,14 +232,14 @@ fn print(state: Encoded, nobjects: usize) {
 
 // validate, see if not exist yet, add to nodes, enqueue
 // // validate, see if not exist yet, add to nodes, enqueue
-fn try_enqueue(nodes: &mut Vec<Node>, visited: &mut HashSet<Encoded>, queue: &mut VecDeque<Node>, state: Encoded, parent: &Node) {
+fn try_enqueue(nodes: &mut Vec<Node>, visited: &mut Vec<u64>, queue: &mut VecDeque<Node>, state: Encoded, parent: &Node) {
     let next = Node { state: state, distance: parent.distance + 1/*, parent: parent.idx, idx: nodes.len()*/ };
-    if /* !nodes.contains(&next)*/ !visited.contains(&state) && valid_encoded(state) {
+    if /* !nodes.contains(&next)*/ (visited[(state as usize) / 64] & (1 << (state % 64)) == 0) && valid_encoded(state) {
         //println!("push {:064b}", next.state);
         print(state, 4);
         //nodes.push(next.clone());
         queue.push_back(next);
-        visited.insert(state);
+        visited[(state as usize) / 64] |= 1 << (state % 64);
     }
 }
 
@@ -254,8 +253,9 @@ fn search(start: &ObjectState, end: &ObjectState) -> usize {
     let end = Node { state: encode(end, 0), distance: 0/*, parent: 0, idx: 0*/ };
     let mut nodes = Vec::new();
     nodes.push(root.clone());
-    let mut visited = HashSet::new();
-    visited.insert(root.state);
+    let mut visited = Vec::new();
+    visited.resize((1 << 30) / 64, 0u64);
+    visited[(root.state as usize) / 64] |= 1 << (root.state % 64);
     let mut queue = VecDeque::new();
     queue.push_back(root);
 
