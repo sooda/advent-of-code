@@ -1,5 +1,5 @@
 use std::collections::vec_deque::VecDeque;
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 // type encodes also the name, which is an arbitrary character i chose here manually for just
 // debugging purposes
@@ -36,11 +36,11 @@ fn valid(state: &ObjectState) -> bool {
 //
 // floor bits like this: chip N-1 .. chip 0 .. gen N-1 .. gen 0 .. elevator
 
-type Encoded = u64;
+type Encoded = u32;
 const FLOOR_BITS: Encoded = 2;
 const FLOOR_MASK: Encoded = 3;
-// XXX XXX HOX SWAP THIS 2 and 5 for sample and input
-const N_ELEMENTS: usize = 5;
+// XXX XXX HOX SWAP THIS 2 and 5 for sample and input (lol 7)
+const N_ELEMENTS: usize = 7;
 
 // 2-bit field helpers; the whole puzzle is probably a very neat bit twiddling trick, but it's
 // so much easier to read (and initially write) this way. Hopefully this will get optimized.
@@ -121,6 +121,8 @@ fn name_index_input(ch: char) -> usize {
         'S' => 2,
         'O' => 3,
         'R' => 4,
+        'E' => 5,
+        'D' => 6,
         _ => unreachable!()
     }
 }
@@ -139,6 +141,8 @@ fn name_at_input(pos: usize) -> char {
         2 => 'S',
         3 => 'O',
         4 => 'R',
+        5 => 'E',
+        6 => 'D',
         _ => unreachable!()
     }
 }
@@ -193,9 +197,9 @@ fn decode(state: Encoded, nobjs: usize) -> ObjectState {
 #[derive(Clone, Debug)]
 struct Node {
     state: Encoded,
-    distance: usize,
-    parent: usize,
-    idx: usize
+    distance: u32,
+    //parent: usize,
+    //idx: usize
 }
 // for Vec::contains - compare just states, distance doesn't matter
 impl PartialEq for Node {
@@ -229,14 +233,14 @@ fn print(state: Encoded, nobjects: usize) {
 
 // validate, see if not exist yet, add to nodes, enqueue
 // // validate, see if not exist yet, add to nodes, enqueue
-fn try_enqueue(nodes: &mut Vec<Node>, visited: &mut HashMap<Encoded, bool>, queue: &mut VecDeque<Node>, state: Encoded, parent: &Node) {
-    let next = Node { state: state, distance: parent.distance + 1, parent: parent.idx, idx: nodes.len() };
-    if /* !nodes.contains(&next)*/ visited.get(&state).is_none() && valid_encoded(state) {
+fn try_enqueue(nodes: &mut Vec<Node>, visited: &mut HashSet<Encoded>, queue: &mut VecDeque<Node>, state: Encoded, parent: &Node) {
+    let next = Node { state: state, distance: parent.distance + 1/*, parent: parent.idx, idx: nodes.len()*/ };
+    if /* !nodes.contains(&next)*/ !visited.contains(&state) && valid_encoded(state) {
         //println!("push {:064b}", next.state);
         print(state, 4);
-        nodes.push(next.clone());
+        //nodes.push(next.clone());
         queue.push_back(next);
-        visited.insert(state, true);
+        visited.insert(state);
     }
 }
 
@@ -246,25 +250,29 @@ fn search(start: &ObjectState, end: &ObjectState) -> usize {
     let nobjects = start.iter().map(|row| row.len()).sum::<usize>();
     let nelements = nobjects / 2;
     let is_gen = |id| id < nelements; // gen indices come first in the bits
-    let root = Node { state: encode(start, 0), parent: 0, distance: 0, idx: 0 };
-    let end = Node { state: encode(end, 0), parent: 0, distance: 0, idx: 0 };
+    let root = Node { state: encode(start, 0), distance: 0/*, parent: 0, idx: 0*/ };
+    let end = Node { state: encode(end, 0), distance: 0/*, parent: 0, idx: 0*/ };
     let mut nodes = Vec::new();
     nodes.push(root.clone());
-    let mut visited = HashMap::new();
-    visited.insert(root.state, true);
+    let mut visited = HashSet::new();
+    visited.insert(root.state);
     let mut queue = VecDeque::new();
     queue.push_back(root);
 
     // floor bits like this: chip N-1 .. chip 0 .. gen N-1 .. gen 0 .. elevator (yes this)
+    let mut ii = 0;
     while let Some(current) = queue.pop_front() {
+        ii += 1;
+        if ii % 100000 == 0 { println!("{} {}", ii, queue.len()); }
         let cur = current.state;
+        if cur & !3 == end.state & !3 { println!("fffound {:?}\n", current); break; }
         //println!("current {:064b}", cur);
         print(cur, nobjects);
         // State changes: elevator up or down, takes one or two objects with it.
         // If two, then they're a) both chips, b) both gens, or c) matching chip and gen.
         // State after they're moved must be valid.
         let elevator = cur & 3;
-        // move 1 up or down
+        // the write_field indices here require that N_ELEMENTS matches the input
         for i in 0..nobjects {
             let objfloor = read_field(cur, 1 + i);
             if objfloor != elevator { continue; }
@@ -313,6 +321,7 @@ fn search(start: &ObjectState, end: &ObjectState) -> usize {
         }
     }
 
+    /*
     //for n in &nodes { println!("{:?}", n); }
     let goal = nodes.iter().find(|&x| x.state & !3 == end.state & !3);
     println!("{:?} {:?}", goal, end);
@@ -330,6 +339,8 @@ fn search(start: &ObjectState, end: &ObjectState) -> usize {
     }
 
     goal.unwrap().distance
+    */
+    0
 }
 
 // solve shortest path in this directed graph:
@@ -470,7 +481,7 @@ fn mainsample() {
     println!("{} {:064b} {}", encode(&step, 0), encode(&step, 0), valid_encoded(encode(&step, 0)));
 }
 
-fn main() {
+fn main_partone() {
     let state: ObjectState = [
         vec![Generator('T'), Microchip('T'), Generator('P'), Generator('S')],
         vec![Microchip('P'), Microchip('S')],
@@ -482,6 +493,35 @@ fn main() {
         vec![],
         vec![],
         vec![Generator('T'), Microchip('T'), Generator('P'), Generator('S'),
+        Microchip('P'), Microchip('S'),
+        Generator('O'), Microchip('O'), Generator('R'), Microchip('R')]
+    ];
+    let inva: ObjectState = [
+        vec![],
+        vec![],
+        vec![Generator('T'), Generator('P')],
+        vec![Microchip('T'), Generator('S'),
+        Microchip('P'), Microchip('S'),
+        Generator('O'), Microchip('O'), Generator('R'), Microchip('R')]
+    ];
+    println!("{} {} {}", valid(&state), valid(&end), valid(&inva));
+    println!("{:064b} {:064b} {:064b}", encode(&state, 0), encode(&end, 0), encode(&inva, 0));
+    println!("{}", search(&state, &end));
+}
+
+// 2b some extra items not listed on the record
+fn main() {
+    let state: ObjectState = [
+        vec![Generator('T'), Microchip('T'), Generator('P'), Generator('S'), Generator('E'), Microchip('E'), Generator('D'), Microchip('D')],
+        vec![Microchip('P'), Microchip('S')],
+        vec![Generator('O'), Microchip('O'), Generator('R'), Microchip('R')],
+        vec![]
+    ];
+    let end: ObjectState = [
+        vec![],
+        vec![],
+        vec![],
+        vec![Generator('T'), Microchip('T'), Generator('P'), Generator('S'), Generator('E'), Microchip('E'), Generator('D'), Microchip('D'),
         Microchip('P'), Microchip('S'),
         Generator('O'), Microchip('O'), Generator('R'), Microchip('R')]
     ];
