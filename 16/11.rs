@@ -210,12 +210,11 @@ impl PartialEq for Node {
 // invalid if: for any chip { no matching gen exists and another gen exists in this floor }
 fn valid_encoded(state: Encoded) -> bool {
     //println!("valid? {:064b}", state);
-    // test all possible slots; extra zeros don't matter
-    for i in 0..15 {
+    for i in 0..N_ELEMENTS {
         let floor = read_microchip(state, i);
         if read_generator(state, i) != floor {
-            for j in 0..15 {
-                if j != i && read_generator(state, i) == floor {
+            for j in 0..N_ELEMENTS {
+                if j != i && read_generator(state, j) == floor {
                     return false;
                 }
             }
@@ -248,6 +247,7 @@ fn try_enqueue(nodes: &mut Vec<Node>, visited: &mut Vec<u64>, queue: &mut VecDeq
 fn search(start: &ObjectState, end: &ObjectState) -> usize {
     let nobjects = start.iter().map(|row| row.len()).sum::<usize>();
     let nelements = nobjects / 2;
+    assert!(nelements == N_ELEMENTS); // lazy hack
     let is_gen = |id| id < nelements; // gen indices come first in the bits
     let root = Node { state: encode(start, 0), distance: 0/*, parent: 0, idx: 0*/ };
     let end = Node { state: encode(end, 0), distance: 0/*, parent: 0, idx: 0*/ };
