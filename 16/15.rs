@@ -37,6 +37,9 @@ fn first_time(discs: &Vec<(u32, u32)>) -> u32 {
 
 fn main() {
     let input = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap()).lines().map(Result::unwrap);
-    let discs = input.map(parse_disc).collect::<Vec<_>>();
+    let mut discs = input.map(parse_disc).collect::<Vec<_>>();
+    println!("{}", first_time(&discs));
+
+    discs.push((11, 0));
     println!("{}", first_time(&discs));
 }
