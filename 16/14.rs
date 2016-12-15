@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 
-// rustc -L foo/deps 5.rs
+// rustc -L foo/deps 14.rs
 extern crate crypto;
 use crypto::md5::Md5;
 use crypto::digest::Digest;
@@ -14,11 +14,49 @@ fn readfile(name: &str) -> String {
     s
 }
 
-type Hash = [u8; 16];
-type Hashes = Vec<Hash>;
+type HashResult = [u8; 16];
+
+trait HashSource {
+    fn hash(&self, input: &str) -> HashResult;
+}
+
+struct HashSourceMd5 {
+}
+
+struct HashSourceMd52016 {
+}
+
+impl HashSource for HashSourceMd5 {
+    fn hash(&self, input: &str) -> HashResult {
+        let mut md5 = Md5::new();
+        md5.input(input.as_bytes());
+
+        let mut out = [0u8; 16];
+        md5.result(&mut out);
+        out
+    }
+}
+
+impl HashSource for HashSourceMd52016 {
+    fn hash(&self, input: &str) -> HashResult {
+        let mut input = input.to_owned();
+        let mut md5 = Md5::new();
+
+        for _ in 0..2017 {
+            md5 = Md5::new();
+            md5.input(input.as_bytes());
+            input = md5.result_str();
+        }
+
+        let mut out = [0u8; 16];
+        md5.result(&mut out);
+        out
+    }
+}
+
 type TripletChar = u8;
 
-fn three_of_same(md5: Hash) -> Option<TripletChar> {
+fn three_of_same(md5: HashResult) -> Option<TripletChar> {
     let ch_at = |i: usize| (md5[i / 2] >> (4 * ((i + 1) & 1))) & 0xf;
 
     for i in 0..32-2 {
@@ -30,7 +68,7 @@ fn three_of_same(md5: Hash) -> Option<TripletChar> {
     None
 }
 
-fn five_of_same(md5: Hash, of_what: u8) -> bool {
+fn five_of_same(md5: HashResult, of_what: u8) -> bool {
     let ch_at = |i: usize| (md5[i / 2] >> (4 * ((i + 1) & 1))) & 0xf;
 
     for i in 0..32-4 {
@@ -41,50 +79,56 @@ fn five_of_same(md5: Hash, of_what: u8) -> bool {
     false
 }
 
-fn get(i: usize, salt: &str, space: &mut Hashes) -> Hash {
-    // only grows one at a time
-    if i == space.len() {
-        // ugh wat tostr
-        let salted = salt.to_owned() + i.to_string().as_str();
-        let mut md5 = Md5::new();
-        md5.input(salted.as_bytes());
-
-        let mut out = [0u8; 16];
-        md5.result(&mut out);
-        space.push(out);
-    }
-
-    space[i]
+struct KeyStore<T: HashSource> {
+    salt: String,
+    hash: T,
+    memory: Vec<HashResult>
 }
 
-fn is_key(idx: usize, salt: &str, space: &mut Hashes) -> bool {
-    let hash = get(idx, salt, space);
-    let triplet = three_of_same(hash);
-    if triplet.is_none() {
-        return false;
+impl<T: HashSource> KeyStore<T> {
+    fn new(salt: &str, hash: T) -> Self {
+        KeyStore::<T> { salt: salt.to_owned(), hash: hash, memory: vec![] }
     }
-    let triplet = triplet.unwrap();
-    for next in idx+1..idx+1001 {
-        let hash = get(next, salt, space);
-        if five_of_same(hash, triplet) {
-            return true;
+
+    fn get(&mut self, i: usize) -> HashResult {
+        // only grows one at a time
+        if i == self.memory.len() {
+            // ugh wat tostr
+            let salted = self.salt.clone() + &i.to_string();
+            let out = self.hash.hash(&salted);
+            self.memory.push(out);
         }
+
+        self.memory[i]
     }
-    false
+
+    fn is_key(&mut self, idx: usize) -> bool {
+        let hash = self.get(idx);
+        let triplet = three_of_same(hash);
+        if let Some(triplet) = triplet {
+            for next in idx+1..idx+1001 {
+                let hash = self.get(next);
+                if five_of_same(hash, triplet) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn next_key(&mut self, mut idx: usize) -> usize {
+        while !self.is_key(idx) {
+            idx += 1;
+        }
+        idx
+    }
 }
 
-fn key_idx(mut idx: usize, salt: &str, mut space: &mut Hashes) -> usize {
-    while !is_key(idx, salt, &mut space) {
-        idx += 1;
-    }
-    idx
-}
-
-fn index_64th(salt: &str) -> usize {
-    let mut hashes = Hashes::new();
+fn index_64th<T: HashSource>(salt: &str, source: T) -> usize {
+    let mut store = KeyStore::new(salt, source);
     let mut idx = 0;
     for _ in 0..64 {
-        idx = key_idx(idx, salt, &mut hashes) + 1;
+        idx = store.next_key(idx) + 1;
     }
     idx - 1
 }
@@ -92,8 +136,11 @@ fn index_64th(salt: &str) -> usize {
 fn main() {
     let src = readfile(&std::env::args().nth(1).unwrap());
 
-    assert!(index_64th("abc") == 22728);
-    println!("{}", index_64th(src.trim()));
+    assert!(index_64th("abc", HashSourceMd5 {}) == 22728);
+    println!("{}", index_64th(src.trim(), HashSourceMd5 {}));
+
+    assert!(index_64th("abc", HashSourceMd52016 {}) == 22551);
+    println!("{}", index_64th(src.trim(), HashSourceMd52016 {}));
 }
 
 
