@@ -29,4 +29,5 @@ fn main() {
 
     println!("{}", dragon(&input, 20));
     println!("{}", dragon(&input, 272));
+    println!("{}", dragon(&input, 35651584));
 }
