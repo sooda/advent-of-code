@@ -8,8 +8,9 @@ use crypto::md5::Md5;
 use crypto::digest::Digest;
 
 use std::collections::vec_deque::VecDeque;
+use std::collections::HashSet;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Turn {
     Start,
     Up,
@@ -31,7 +32,7 @@ impl Turn {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct State {
     x: i8,
     y: i8,
@@ -52,7 +53,7 @@ fn valid_moves(passcode: &str, pos: &State) -> [Option<(i8, i8, Turn)>; 4] {
 
     let mut out = [0u8; 16];
     md5.result(&mut out);
-    println!("  validity {:?} {:?}", out, input);
+    //println!("  validity {:?} {:?}", out, input);
 
     [
         if out[0] & 0xf0 >= 0xb0 && pos.y > 0 { Some((pos.x, pos.y - 1, Up))    } else { None },
@@ -62,38 +63,51 @@ fn valid_moves(passcode: &str, pos: &State) -> [Option<(i8, i8, Turn)>; 4] {
     ]
 }
 
-fn path(passcode: &str) -> String {
+fn path(passcode: &str, find_longest: bool) -> String {
     let root = State::new(0, 0, Start, "");
-    let mut history = vec![root.clone()];
+    let mut visited = HashSet::new();
+    visited.insert(root.clone());
     let mut queue = VecDeque::new();
+    let mut longest = root.clone(); // just something to please the undef-checker
     queue.push_back(root);
 
+
     while let Some(current) = queue.pop_front() {
-        println!("current {:?}", current);
+        //println!("current {:?}", current);
         let moves = valid_moves(passcode, &current);
-        println!("  valids {:?}", moves);
+        //println!("  valids {:?}", moves);
         for next in moves.iter().filter_map(|x| x.clone()) {
             let mut p = current.path.clone(); p.push(next.2.ch());
             let state = State::new(next.0, next.1, next.2, &p);
-            if history.contains(&state) {
+            if visited.contains(&state) {
                 continue;
             }
             if next.0 == 3 && next.1 == 3 {
-                return state.path;
+                if find_longest {
+                    longest = state.clone();
+                    continue; // cannot backtrack from the goal
+                } else {
+                    return state.path;
+                }
             }
-            println!("  push {:?}", state);
+            //println!("  push {:?}", state);
             queue.push_back(state.clone());
-            history.push(state.clone());
+            visited.insert(state.clone());
         }
     }
-    unreachable!()
+
+    longest.path
 }
 
 fn main() {
     // path("hijkl");
-    assert!(path("ihgpwlah") == "DDRRRD");
-    assert!(path("kglvqrro") == "DDUDRLRRUDRD");
-    assert!(path("ulqzkmiv") == "DRURDRUDDLLDLUURRDULRLDUUDDDRR");
+    assert!(path("ihgpwlah", false) == "DDRRRD");
+    assert!(path("kglvqrro", false) == "DDUDRLRRUDRD");
+    assert!(path("ulqzkmiv", false) == "DRURDRUDDLLDLUURRDULRLDUUDDDRR");
     let input = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap()).lines().next().unwrap().unwrap();
-    println!("{}", path(&input));
+    println!("{}", path(&input, false));
+    assert!(path("ihgpwlah", true).len() == 370);
+    assert!(path("kglvqrro", true).len() == 492);
+    assert!(path("ulqzkmiv", true).len() == 830);
+    println!("{}", path(&input, true).len());
 }
