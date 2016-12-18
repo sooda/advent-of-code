@@ -28,7 +28,7 @@ fn safe_tiles(first_row: &str, rows: usize) -> usize {
     // add sentinel tiles for the borders; simpler than special cases for indices in next_tile
     let mut current = ".".to_owned() + &first_row + ".";
     for _ in 0..rows {
-        println!("{}", current);
+        if rows < 1000 { println!("{}", current); }
         safes += current.chars().filter(|&x| x == '.').count() - 2; // sentinels off
         let foo = next_row(&current);
         current = foo;
@@ -42,5 +42,6 @@ fn main() {
     assert!(safe_tiles(".^^.^.^^^^", 10) == 38);
     let input = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap()).lines().next().unwrap().unwrap();
     println!("{}", safe_tiles(&input, 40));
+    println!("{}", safe_tiles(&input, 400000));
 }
 
