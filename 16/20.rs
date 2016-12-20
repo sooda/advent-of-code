@@ -20,8 +20,8 @@ fn parseline(input: &str, rules: &mut Vec<(u32, u32)>) {
 fn filter(rules: &mut Vec<(u32, u32)>) {
     let mut into = 0;
     while into < rules.len() - 1 {
-        // next's start less than our end? overlaps
-        if rules[into + 1].0 <= rules[into].1 + 1 {
+        // next's start less than or equal to our end? overlap, merge
+        if rules[into + 1].0 - 1 <= rules[into].1 {
             if rules[into + 1].1 <= rules[into].1 {
                 // next is completely inside this, so delete it
                 rules.remove(into + 1);
@@ -47,6 +47,11 @@ fn first_allowed(rules: &[(u32, u32)]) -> u32 {
     }
 }
 
+fn num_allowed(rules: &[(u32, u32)], total: u64) -> u64 {
+    let denied = rules.iter().map(|&(start, end)| end as u64 - start as u64 + 1).sum::<u64>();
+    total - denied
+}
+
 fn main() {
     let input = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap()).lines().map(Result::unwrap);
     let mut rules = Vec::new();
@@ -54,6 +59,7 @@ fn main() {
         parseline(&line, &mut rules);
     }
     filter(&mut rules);
-    println!("{:?}", rules);
     println!("{}", first_allowed(&rules));
+    println!("{}", num_allowed(&rules, 10));
+    println!("{}", num_allowed(&rules, std::u32::MAX as u64 + 1));
 }
