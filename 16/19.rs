@@ -33,10 +33,38 @@ fn winner(num_elves: usize) -> usize {
     1 + elves.iter().position(|&e| e > 0).unwrap()
 }
 
+fn winner2(num_elves: usize) -> usize {
+    let mut elves = Vec::new();
+    for i in 0..num_elves {
+        elves.push(i);
+    }
+    let mut jj = 0;
+    let mut stealer = 0;
+    while elves.len() > 1 {
+        //println!("{:?}", elves);
+        jj += 1;
+        if jj % 1000 == 0 { println!("{} {}", jj, elves.len()); }
+        let source = (stealer + elves.len() / 2) % elves.len();
+        assert!(source != stealer);
+        //println!("{} {} takes {} {}", stealer, elves[stealer], source, elves[source]);
+        elves.remove(source);
+        if source > stealer {
+            // stole after this index, so advance
+            stealer += 1;
+        } // else, the next item moved to this index
+        stealer %= elves.len();
+    }
+    println!("{:?}", elves);
+
+    1 + elves[0]
+}
+
 fn main() {
     winner(10); // debugged these two on paper
     winner(15);
     assert!(winner(5) == 3);
+    assert!(winner2(5) == 2);
     let input = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap()).lines().next().unwrap().unwrap();
     println!("{}", winner(input.parse().unwrap()));
+    println!("{}", winner2(input.parse().unwrap()));
 }
