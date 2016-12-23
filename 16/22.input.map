@@ -31,3 +31,13 @@
 28  66/ 88  65/ 89  70/ 93  65/ 86  69/ 88  69/ 91  65/ 85  67/ 91  72/ 92  69/ 90  64/ 92  69/ 87  67/ 94  68/ 86  64/ 94  66/ 91  64/ 88  66/ 89  67/ 85  65/ 93  69/ 85  68/ 85  71/ 93  71/ 93  71/ 90  65/ 85  67/ 94  73/ 89  68/ 87  65/ 93  66/ 86  73/ 89  67/ 85  73/ 90
 29  66/ 92  72/ 88  73/ 89  70/ 85  68/ 93  66/ 90  70/ 93  64/ 87  65/ 86  66/ 92  68/ 91  69/ 85  71/ 85  69/ 86  72/ 89  71/ 87  66/ 87  67/ 89  68/ 94  68/ 85  72/ 87  66/ 93  67/ 88  68/ 88  70/ 90  73/ 89  70/ 88  66/ 87  66/ 91  72/ 93  68/ 94  72/ 94  68/ 92  68/ 87
 30  73/ 85  70/ 89  66/ 90  72/ 87  72/ 89  66/ 87  70/ 92  68/ 89  66/ 87  72/ 86  73/ 86  67/ 89  71/ 89  70/ 92  73/ 91  65/ 90  65/ 89  65/ 93  73/ 93  67/ 90  69/ 88  64/ 93  65/ 90  66/ 89  66/ 87  73/ 94  72/ 89  66/ 87  71/ 91  69/ 92  71/ 94  71/ 88  68/ 91  66/ 94
+
+looks like any node could fit in any other if they just were empty, except that wall. that puzzle
+move (20,25) into (4,25): 16 steps
+move (4,25) into (4,0): 25 steps
+move to (33, 0): 29 steps
+now top right has free space, goal data is at (32, 0) because it was empty before
+takes down left left up = four steps to move the free space in front of goal, plus one to move the goal there: 5 per goal step
+goal needs to move 32 times
+
+16 + 25 + 29 + 32 * 5 = 230
