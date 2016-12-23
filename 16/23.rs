@@ -92,12 +92,21 @@ fn parse(input: String) -> Instruction {
 fn main() {
     let input = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap()).lines().map(Result::unwrap);
     let mut program = input.map(parse).collect::<Vec<_>>();
+    let mut program2 = program.clone();
 
     let mut regs = [7, 0, 0, 0];
     let mut pc = 0;
     while pc != program.len() as Pc {
         //println!("{:?} {:?} {:?}", pc, regs, program);
         pc = action(&mut program, pc, &mut regs);
+    }
+    println!("{:?}", regs);
+
+    let mut regs = [12, 0, 0, 0];
+    let mut pc = 0;
+    while pc != program2.len() as Pc {
+        //println!("{:?} {:?} {:?}", pc, regs, program);
+        pc = action(&mut program2, pc, &mut regs);
     }
     println!("{:?}", regs);
 }
