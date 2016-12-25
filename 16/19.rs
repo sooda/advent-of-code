@@ -33,30 +33,37 @@ fn winner(num_elves: usize) -> usize {
     1 + elves.iter().position(|&e| e > 0).unwrap()
 }
 
-fn winner2(num_elves: usize) -> usize {
-    let mut elves = Vec::new();
-    for i in 0..num_elves {
-        elves.push(i);
-    }
-    let mut jj = 0;
-    let mut stealer = 0;
-    while elves.len() > 1 {
-        //println!("{:?}", elves);
-        jj += 1;
-        if jj % 1000 == 0 { println!("{} {}", jj, elves.len()); }
-        let source = (stealer + elves.len() / 2) % elves.len();
-        assert!(source != stealer);
-        //println!("{} {} takes {} {}", stealer, elves[stealer], source, elves[source]);
-        elves.remove(source);
-        if source > stealer {
-            // stole after this index, so advance
-            stealer += 1;
-        } // else, the next item moved to this index
-        stealer %= elves.len();
-    }
-    println!("{:?}", elves);
+#[derive(Debug)]
+struct Seat {
+    name: usize,
+    next: usize,
+}
 
-    1 + elves[0]
+fn winner2(num_elves: usize) -> usize {
+    let mut seats = Vec::new();
+    for i in 0..num_elves {
+        seats.push(Seat { name: 1 + i, next: ((i + 1) % num_elves) });
+    }
+    let mut current = 0;
+    let mut before_victim = num_elves / 2 - 1;
+    let mut num_even = (num_elves % 2) == 0;
+
+    for _ in 0..num_elves-1 {
+        // unlink, i.e., delete. this moves the one pointed to "before" forward by one
+        seats[before_victim].next = seats[seats[before_victim].next].next;
+
+        if num_even {
+            // victim moves one forward, so before it stays as-is because of the above
+        } else {
+            // victim moves two forward
+            before_victim = seats[before_victim].next;
+        }
+
+        num_even = !num_even;
+        current = seats[current].next;
+    }
+
+    seats[current].name
 }
 
 fn main() {
