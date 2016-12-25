@@ -2,41 +2,30 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::BufRead;
 
-fn round(elves: &mut [u32]) -> bool {
-    let mut modified = 0;
-    for i in 0..elves.len() {
-        if elves[i] > 0 {
-            for j in 1..elves.len() {
-                let jj = (i + j) % elves.len();
-                if elves[jj] > 0 {
-                    //println!("{} takes {}", i+1, jj+1);
-                    modified += 1;
-                    elves[i] += elves[jj];
-                    elves[jj] = 0;
-                    break;
-                }
-            }
-        }
-    }
-
-    modified == 0
-}
-
-fn winner(num_elves: usize) -> usize {
-    let mut elves = vec![1u32; num_elves];
-    // println!("{:?}", elves);
-    while !round(&mut elves) {
-        // nothing here
-        //println!("{:?}", elves);
-    }
-
-    1 + elves.iter().position(|&e| e > 0).unwrap()
-}
-
 #[derive(Debug)]
 struct Seat {
     name: usize,
     next: usize,
+}
+
+fn winner(num_elves: usize) -> usize {
+    let mut seats = Vec::new();
+    for i in 0..num_elves {
+        seats.push(Seat { name: 1 + i, next: ((i + 1) % num_elves) });
+    }
+    let mut current = 0;
+    let mut before_victim = 0;
+
+    for _ in 0..num_elves-1 {
+        // unlink, i.e., delete. this moves the one pointed to "before" forward by one
+        seats[before_victim].next = seats[seats[before_victim].next].next;
+        // victim moves always two forward
+        before_victim = seats[before_victim].next;
+
+        current = seats[current].next;
+    }
+
+    seats[current].name
 }
 
 fn winner2(num_elves: usize) -> usize {
