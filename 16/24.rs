@@ -126,20 +126,25 @@ fn main() {
 
     // try each permutation of the places of interest in this smaller topological graph. each
     // position can be visited more than once, if necessary
-    let heap = Heap::new(&mut route);
-    let mut permutations = Vec::new(); // meh. heap can't be .iter()'d
-    for data in heap { permutations.push(data.clone()); }
-    let min_path = permutations.iter().map(
-        |candidate| {
-            let mut steps = distances[0][candidate[0] as usize];
-            let mut prev = candidate[0];
-            for &node in &candidate[1..] {
-                steps += distances[prev as usize][node as usize];
-                prev = node;
-            }
-            steps
-        }).min();
-    println!("{:?}", min_path);
+    for &go_back_home in &[false, true] {
+        let heap = Heap::new(&mut route);
+        let mut permutations = Vec::new(); // meh. heap can't be .iter()'d
+        for data in heap { permutations.push(data.clone()); }
+        let min_path = permutations.iter().map(
+            |candidate| {
+                let mut steps = distances[0][candidate[0] as usize];
+                let mut prev = candidate[0];
+                for &node in &candidate[1..] {
+                    steps += distances[prev as usize][node as usize];
+                    prev = node;
+                }
+                if go_back_home {
+                    steps += distances[prev as usize][0];
+                }
+                steps
+            }).min();
+        println!("{:?}", min_path);
+    }
     // alternatively, could just bfs in a graph that has the visited places in the state too, with
     // a vector of all marked as visited as the goal node
 }
