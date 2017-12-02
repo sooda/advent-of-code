@@ -5,9 +5,8 @@ use std::io::BufRead;
 fn solve(input: &str) -> u32 {
     let a = input.chars();
     let b = input.chars().cycle().skip(1);
-    a.zip(b).fold(
-        0,
-        |acc, (i, j)| acc + if i == j { i as u32 - '0' as u32 } else { 0 })
+    a.zip(b).map(
+        |(i, j)| if i == j { i as u32 - '0' as u32 } else { 0 }).sum()
 }
 
 fn main() {
