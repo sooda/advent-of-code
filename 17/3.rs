@@ -55,6 +55,44 @@ fn solve(input: i32) -> i32 {
     }
 }
 
+fn solve_b(input: i32) -> i32 {
+    use std::f64::consts::PI;
+    // input is much less than my RAM, don't bother figuring out any near-exact size...
+    let s = (input as f64).sqrt() as i32;
+    let mut arr: Vec<Option<i32>> = vec![None; (s * s) as usize];
+    let idx = |x, y| ((y + s / 2) * s + (x + s / 2)) as usize;
+    // https://oeis.org/A174344
+    let mod_ = |x, y| x % y;
+    let next_x = |x, n| x + (mod_(((4f64*(n as f64-2f64)+1f64).sqrt()),4f64).floor()*PI/2f64).sin() as i32;
+    let next_y = |y, n| y - (mod_(((4f64*(n as f64-2f64)+1f64).sqrt()),4f64).floor()*PI/2f64).cos() as i32;
+
+    arr[idx(0, 0)] = Some(1);
+    let mut x = 1;
+    let mut y = 0;
+    let mut n = 2;
+
+    loop {
+        let mut sum = 0;
+        for &dy in &[-1, 0, 1] {
+            for &dx in &[-1, 0, 1] {
+                if !(dx == 0 && dy == 0) {
+                    if let Some(n) = arr[idx(x + dx, y + dy)] {
+                        sum += n;
+                    }
+                }
+            }
+        }
+        arr[idx(x, y)] = Some(sum);
+        println!("{} {} {} {}", n, x, y, sum);
+        if sum > input {
+            return sum;
+        }
+        n += 1;
+        x = next_x(x, n);
+        y = next_y(y, n);
+    }
+}
+
 fn main() {
     assert!(solve(1) == 0);
     assert!(solve(12) == 3);
@@ -63,4 +101,5 @@ fn main() {
     let input = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().next().unwrap().unwrap().parse::<i32>().unwrap();
     println!("{}", solve(input));
+    println!("{}", solve_b(input));
 }
