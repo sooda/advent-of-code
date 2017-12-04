@@ -23,6 +23,7 @@ use std::io::BufRead;
 //        y coordinate (i+x-4) % x
 //        note that bottom right isn't here, doesn't matter
 // note that the corners belong to either one except for right row
+// there must be a more concise way but this was easy enough for pen & paper
 
 fn solve(input: i32) -> i32 {
     if input == 1 {
@@ -48,7 +49,7 @@ fn solve(input: i32) -> i32 {
         println!("c {} {}",  xx , ((input - 3) % x - xx).abs());
         return xx + ((input - 3) % x - xx).abs();
     } else if input >= right_bot_minus_1 {
-        println!("c {} {}",  xx , ((input - 4) % x - xx).abs());
+        println!("d {} {}",  xx , ((input - 4) % x - xx).abs());
         return xx + ((input - 4) % x - xx).abs();
     } else {
         unreachable!()
@@ -57,14 +58,18 @@ fn solve(input: i32) -> i32 {
 
 fn solve_b(input: i32) -> i32 {
     use std::f64::consts::PI;
+    let sqrt = f64::sqrt;
+    let floor = f64::floor;
+    let sin = f64::sin;
+    let cos = f64::cos;
     // input is much less than my RAM, don't bother figuring out any near-exact size...
     let s = (input as f64).sqrt() as i32;
     let mut arr: Vec<Option<i32>> = vec![None; (s * s) as usize];
     let idx = |x, y| ((y + s / 2) * s + (x + s / 2)) as usize;
     // https://oeis.org/A174344
     let mod_ = |x, y| x % y;
-    let next_x = |x, n| x + (mod_(((4f64*(n as f64-2f64)+1f64).sqrt()),4f64).floor()*PI/2f64).sin() as i32;
-    let next_y = |y, n| y - (mod_(((4f64*(n as f64-2f64)+1f64).sqrt()),4f64).floor()*PI/2f64).cos() as i32;
+    let next_x = |x, n| x + sin(mod_(floor((sqrt(4f64 * (n as f64 - 2f64) + 1f64))), 4f64) * PI / 2f64) as i32;
+    let next_y = |y, n| y - cos(mod_(floor((sqrt(4f64 * (n as f64 - 2f64) + 1f64))), 4f64) * PI / 2f64) as i32;
 
     arr[idx(0, 0)] = Some(1);
     let mut x = 1;
