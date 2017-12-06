@@ -22,13 +22,12 @@ fn redist(banks: &mut Vec<u32>) {
 // count of redistributions from the beginning until a loop is found
 fn redist_cycle_count(mut banks: Vec<u32>) -> usize {
     let mut seen = HashSet::new();
-    seen.insert(banks.clone());
-    for i in 1.. {
-        redist(&mut banks);
+    for i in 0.. {
         if seen.contains(&banks) {
             return i;
         }
         seen.insert(banks.clone());
+        redist(&mut banks);
     }
     unreachable!()
 }
@@ -36,13 +35,12 @@ fn redist_cycle_count(mut banks: Vec<u32>) -> usize {
 // how long is the cycle we've found?
 fn redist_cycle_size(mut banks: Vec<u32>) -> usize {
     let mut seen = HashMap::new();
-    seen.insert(banks.clone(), 0usize);
-    for i in 1.. {
-        redist(&mut banks);
+    for i in 0usize.. {
         if let Some(j) = seen.get(&banks) {
             return i - j;
         }
         seen.insert(banks.clone(), i);
+        redist(&mut banks);
     }
     unreachable!()
 }
