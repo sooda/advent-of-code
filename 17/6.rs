@@ -3,6 +3,7 @@ use std::io::BufReader;
 use std::io::BufRead;
 
 use std::collections::HashSet;
+use std::collections::HashMap;
 
 fn redist(banks: &mut Vec<u32>) {
     // rev: max_by returns the last one, but the puzzle spec says ties are broken by lowest idx
@@ -18,6 +19,7 @@ fn redist(banks: &mut Vec<u32>) {
     }
 }
 
+// count of redistributions from the beginning until a loop is found
 fn redist_cycle_count(mut banks: Vec<u32>) -> usize {
     let mut seen = HashSet::new();
     seen.insert(banks.clone());
@@ -27,6 +29,20 @@ fn redist_cycle_count(mut banks: Vec<u32>) -> usize {
             return i;
         }
         seen.insert(banks.clone());
+    }
+    unreachable!()
+}
+
+// how long is the cycle we've found?
+fn redist_cycle_size(mut banks: Vec<u32>) -> usize {
+    let mut seen = HashMap::new();
+    seen.insert(banks.clone(), 0usize);
+    for i in 1.. {
+        redist(&mut banks);
+        if let Some(j) = seen.get(&banks) {
+            return i - j;
+        }
+        seen.insert(banks.clone(), i);
     }
     unreachable!()
 }
@@ -42,7 +58,9 @@ fn main() {
     assert!(sample2 == vec![0u32, 2, 3, 4]);
 
     assert!(redist_cycle_count(vec![0, 2, 7, 0]) == 5);
+    assert!(redist_cycle_size(vec![0, 2, 7, 0]) == 4);
     let input = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
-        .lines().next().unwrap().unwrap().split("\t").map(|n| n.parse::<u32>().unwrap()).collect();
-    println!("{}", redist_cycle_count(input));
+        .lines().next().unwrap().unwrap().split("\t").map(|n| n.parse::<u32>().unwrap()).collect::<Vec<_>>();
+    println!("{}", redist_cycle_count(input.clone()));
+    println!("{}", redist_cycle_size(input));
 }
