@@ -71,23 +71,28 @@ fn parse_line(line: &str) -> Instruction {
     }
 }
 
-fn run(program: &[Instruction], memory: &mut HashMap<String, i32>) {
+fn run(program: &[Instruction], memory: &mut HashMap<String, i32>) -> i32 {
+    let mut highest = 0;
     for ref p in program.iter() {
         let reg = match memory.get(&p.compare_reg) {
             Some(v) => *v,
             None => 0
         };
         if compare(p.compare_op, reg, p.compare_value) {
-            *memory.entry(p.target_reg.clone()).or_insert(0) += p.addition;
+            let reg = memory.entry(p.target_reg.clone()).or_insert(0);
+            *reg += p.addition;
+            highest = std::cmp::max(highest, *reg);
         }
     }
+    highest
 }
 
 fn main() {
     let program = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().map(|x| parse_line(&x.unwrap())).collect::<Vec<_>>();
     let mut memory: HashMap<String, i32> = HashMap::new();
-    run(&program, &mut memory);
+    let highest = run(&program, &mut memory);
     println!("{:?}", memory);
     println!("{}", memory.iter().map(|(_, &v)| v).max().unwrap());
+    println!("{}", highest);
 }
