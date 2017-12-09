@@ -2,12 +2,13 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::BufRead;
 
-fn score(stream: &str) -> u32 {
+fn score_garbage(stream: &str) -> (u32, u32) {
     //println!("{}", stream);
     let mut level = 0;
     let mut garbage = false;
     let mut ignore = false;
     let mut scores = 0;
+    let mut garbages = 0;
     for c in stream.chars() {
         //println!("c:{} l:{} s:{} g:{} i:{}", c, level, scores, garbage, ignore);
         if garbage {
@@ -17,7 +18,7 @@ fn score(stream: &str) -> u32 {
                 match c {
                     '!' => ignore = true,
                     '>' => garbage = false,
-                    _ => {},
+                    _ => garbages += 1,
                 }
             }
         } else {
@@ -31,20 +32,28 @@ fn score(stream: &str) -> u32 {
         }
     }
 
-    scores
+    (scores, garbages)
 }
 
 fn main() {
-    assert!(score("{}") == 1);
-    assert!(score("{{{}}}") == 6);
-    assert!(score("{{},{}}") == 5);
-    assert!(score("{{{},{},{{}}}}") == 16);
-    assert!(score("{<a>,<a>,<a>,<a>}") == 1);
-    assert!(score("{{<ab>},{<ab>},{<ab>},{<ab>}}") == 9);
-    assert!(score("{{<!!>},{<!!>},{<!!>},{<!!>}}") == 9);
-    assert!(score("{{<a!>},{<a!>},{<a!>},{<ab>}}") == 3);
+    assert!(score_garbage("{}").0 == 1);
+    assert!(score_garbage("{{{}}}").0 == 6);
+    assert!(score_garbage("{{},{}}").0 == 5);
+    assert!(score_garbage("{{{},{},{{}}}}").0 == 16);
+    assert!(score_garbage("{<a>,<a>,<a>,<a>}").0 == 1);
+    assert!(score_garbage("{{<ab>},{<ab>},{<ab>},{<ab>}}").0 == 9);
+    assert!(score_garbage("{{<!!>},{<!!>},{<!!>},{<!!>}}").0 == 9);
+    assert!(score_garbage("{{<a!>},{<a!>},{<a!>},{<ab>}}").0 == 3);
+
+    assert!(score_garbage("<>").1 == 0);
+    assert!(score_garbage("<random characters>").1 == 17);
+    assert!(score_garbage("<<<<>").1 == 3);
+    assert!(score_garbage("<{!>}>").1 == 2);
+    assert!(score_garbage("<!!>").1 == 0);
+    assert!(score_garbage("<!!!>>").1 == 0);
+    assert!(score_garbage("<{o\"i!a,<{i<a>").1 == 10);
 
     let input = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().next().unwrap().unwrap();
-    println!("{}", score(&input));
+    println!("{:?}", score_garbage(&input));
 }
