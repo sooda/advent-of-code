@@ -33,9 +33,15 @@ fn zero_group_count(nodes: &[Node]) -> usize {
     group_count(nodes, 0, &mut visited)
 }
 
+fn number_of_groups(nodes: &[Node]) -> usize {
+    let mut visited = vec![false; nodes.len()];
+    (0..nodes.len()).map(|i| if group_count(nodes, i, &mut visited) > 0 { 1 } else { 0 }).sum()
+}
+
 fn main() {
     let nodes = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().map(|x| parse_line(&x.unwrap())).collect::<Vec<_>>();
     println!("{:?}", nodes);
     println!("{}", zero_group_count(&nodes));
+    println!("{}", number_of_groups(&nodes));
 }
