@@ -23,21 +23,25 @@ fn scanner_pos(layer: &Layer, time: u32) -> u32 {
 }
 
 fn severity(firewall: &[Layer]) -> u32 {
-    let mut severity = 0;
-    for layer in firewall {
-        // "skip" to this depth -- severity does not accumulate in empty slots and scanner_pos has
-        // no state
-        let my_depth_and_time = layer.depth;
-        if scanner_pos(layer, my_depth_and_time) == 0 {
-            severity += layer.depth * layer.range;
-        }
-    }
+    // my depth is the same as the layer depth in each timestep
+    firewall.iter()
+        .filter(|layer| scanner_pos(layer, layer.depth) == 0)
+        .map(|layer| layer.depth * layer.range)
+        .sum()
+}
 
-    severity
+fn safe_time(firewall: &[Layer]) -> u32 {
+    // the first collision would give severity 0, but it's not allowed either
+    (0..).find(|delay|
+               firewall.iter()
+               .find(|layer| scanner_pos(layer, delay + layer.depth) == 0)
+               .is_none()
+    ).unwrap()
 }
 
 fn main() {
     let firewall = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().map(|x| parse_line(&x.unwrap())).collect::<Vec<_>>();
     println!("{}", severity(&firewall));
+    println!("{}", safe_time(&firewall));
 }
