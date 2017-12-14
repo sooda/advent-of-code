@@ -76,10 +76,84 @@ fn used_squares(key: &str) -> u32 {
         }).sum()
 }
 
+// here a zero x is in the right side, but it doesn't matter
+fn bit_get(x: (u64, u64), i: i32) -> bool {
+    if i < 64 {
+        (x.1 & (1 << i)) != 0
+    } else {
+        (x.0 & (1 << (i - 64))) != 0
+    }
+}
+
+fn bit_set(x: &mut (u64, u64), i: i32) {
+    if i < 64 {
+        x.1 |= 1 << i;
+    } else {
+        x.0 |= 1 << (i - 64);
+    }
+}
+
+fn map_get(map: &[(u64, u64)], x: i32, y: i32) -> bool {
+    bit_get(map[y as usize], x)
+}
+
+fn map_set(map: &mut [(u64, u64)], x: i32, y: i32) {
+    bit_set(&mut map[y as usize], x)
+}
+
+// start a depth search to mark as visited all squares accessible from here
+fn traverse(map: &[(u64, u64)], mut visited: &mut [(u64, u64)], x: i32, y: i32) {
+    // done already
+    if map_get(visited, x, y) {
+        return;
+    }
+
+    // not an occupied square, stop search
+    if !map_get(map, x, y) {
+        return;
+    }
+
+    // mark this and children recursively
+
+    map_set(&mut visited, x, y);
+
+    for &(xx, yy) in &[(x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)] {
+        if xx >= 0 && xx <= 127 && yy >= 0 && yy <= 127 {
+            traverse(map, visited, xx, yy);
+        }
+    }
+}
+
+fn test_mark_cell(map: &[(u64, u64)], visited: &mut [(u64, u64)], x: i32, y: i32) -> bool {
+    if map_get(visited, x, y) || !map_get(map, x, y) {
+        false
+    } else {
+        traverse(map, visited, x, y);
+        true
+    }
+}
+
+fn region_count(key: &str) -> usize {
+    let map = (0..128)
+        .map(|row| {
+            let id = String::from(key) + "-" + &row.to_string();
+            hash_bits(&id)
+        }).collect::<Vec<_>>();
+    let mut visited = [(0u64, 0u64); 128];
+    let mut test_pos = |x, y| test_mark_cell(&map, &mut visited, x, y);
+    // can't flat_map because y wouldn't live long enough :((
+    (0i32..128)
+        .map(|y| (0i32..128)
+             .map(|x| test_pos(x, y))
+             .filter(|&found| found).count()
+            ).sum()
+}
+
 fn main() {
     assert!(used_squares("flqrgnkx") == 8108);
+    assert!(region_count("flqrgnkx") == 1242);
 
     let input = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().next().unwrap().unwrap();
-    println!("{}", used_squares(&input));
+    println!("{} {}", used_squares(&input), region_count(&input));
 }
