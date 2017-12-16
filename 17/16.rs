@@ -63,6 +63,22 @@ fn main() {
     let line = &BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().next().unwrap().unwrap();
     let moves = line.split(',').collect::<Vec<_>>();
-    let mut programs = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p'];
-    println!("{}", dance(&mut programs, &moves).iter().collect::<String>());
+    let orig_programs = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p'];
+    let mut programs = orig_programs.clone();
+    let mut history = Vec::new();
+    // start from 1, not 0: comparison is after dancing "round" number of times
+    for round in 1.. {
+        history.push(programs.clone());
+        println!("{:02} {}", round - 1, programs.iter().collect::<String>());
+
+        dance(&mut programs, &moves);
+
+        if programs == orig_programs {
+            println!("cycle len: {} remainder: {} result: {}",
+                     round,
+                     1000000000 % round,
+                     history[1000000000 % round].iter().collect::<String>());
+            break;
+        }
+    }
 }
