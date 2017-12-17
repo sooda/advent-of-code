@@ -141,12 +141,18 @@ fn region_count(key: &str) -> usize {
         }).collect::<Vec<_>>();
     let mut visited = [(0u64, 0u64); 128];
     let mut test_pos = |x, y| test_mark_cell(&map, &mut visited, x, y);
-    // can't flat_map because y wouldn't live long enough :((
+    // Generate the coordinates and test them; if true, this was the first time we're visiting
+    // and thus a new tree in the forest was found.
+    //
+    // Beginner Rust note: have to flatten the coordinates first instead of doing stuff like
+    // map(|foo| test_pos(...)) inside flat_map's closure because flat_map wants FnMut. The mutable
+    // borrow in test_pos fights against that; a closure to return that map iterator with a mut ref
+    // would be FnOnce. This way is cleaner anyway, so no problem.
     (0i32..128)
-        .map(|y| (0i32..128)
-             .map(|x| test_pos(x, y))
-             .filter(|&found| found).count()
-            ).sum()
+        .flat_map(|y| (0i32..128).map(move |x| (x, y)))
+        .map(|(x, y)| test_pos(x, y)) // I could filter() with test_pos already, but this way
+        .filter(|&found| found)       // is more clear about the side effects, IMO.
+        .count()
 }
 
 fn main() {
