@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::BufRead;
 
-fn path_letters(map: &[String]) -> String {
+fn path_letters(map: &[String]) -> (String, usize) {
     let mut path = String::new();
     let mut x = map[0].as_bytes().iter().position(|&x| x == b'|').unwrap() as i32;
     let mut y = 0i32;
@@ -10,6 +10,7 @@ fn path_letters(map: &[String]) -> String {
     let mut dy = 1i32;
     let w = map[0].as_bytes().len() as i32;
     let h = map.len() as i32;
+    let mut steps = 0;
 
     let at = |x: i32, y: i32| map[y as usize].as_bytes()[x as usize];
 
@@ -49,13 +50,14 @@ fn path_letters(map: &[String]) -> String {
         }
         x += dx;
         y += dy;
+        steps += 1;
     }
 
-    path
+    (path, steps)
 }
 
 fn main() {
     let map = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().map(|x| x.unwrap()).collect::<Vec<String>>();
-    println!("{}", path_letters(&map));
+    println!("{:?}", path_letters(&map));
 }
