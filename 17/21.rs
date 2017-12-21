@@ -355,9 +355,9 @@ fn on_pixels_after(rules: &[Rule], iterations: usize) -> usize {
         //println!("render loop: {} {} {}", _i, canvas.len(), (canvas.len() as f64).sqrt().ceil() as usize);
         let w = (canvas.len() as f64).sqrt().ceil() as usize;
         for row in canvas.chunks(w) {
-            println!("{:?}", row.iter().map(|&x| x as char).collect::<String>());
+            // println!("{:?}", row.iter().map(|&x| x as char).collect::<String>());
         }
-        println!("{}", canvas.iter().filter(|&&pixel| pixel == b'#').count());
+        println!("{} {} {}", _i, w, canvas.iter().filter(|&&pixel| pixel == b'#').count());
         canvas = enhance(&canvas, rules);
     }
 
@@ -368,4 +368,5 @@ fn main() {
     let rules = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().map(|x| parse_line(&x.unwrap())).collect::<Vec<_>>();
     println!("{:?}", on_pixels_after(&rules, 5));
+    println!("{:?}", on_pixels_after(&rules, 18));
 }
