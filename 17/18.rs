@@ -4,7 +4,7 @@ use std::io::BufRead;
 
 use std::collections::vec_deque::VecDeque;
 
-// Can't index a vector of registers with char, and indexin a mut hashmap is annoying, so the a-z
+// Can't index a vector of registers with char, and indexing a mut hashmap is annoying, so the a-z
 // range is modified to just numbers.
 type Reg = usize;
 type Val = i64;
