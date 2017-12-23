@@ -1,0 +1,75 @@
+         set b 79
+         set c b
+  ------ jnz a 2
+  v   v- jnz 1 5
+  --> v  mul b 100
+      v  sub b -100000
+      v  set c b
+      v  sub c -17000
+      -> set f 1 <--------
+         set d 2         ^
+         set e 2 <-----  ^
+         set g d <--  ^  ^
+         mul g e   ^  ^  ^
+         sub g b   ^  ^  ^
+      v- jnz g 2   ^  ^  ^
+      v  set f 0   ^  ^  ^
+      -> sub e -1  ^  ^  ^
+         set g e   ^  ^  ^
+         sub g b   ^  ^  ^
+         jnz g -8 -^  ^  ^
+         sub d -1     ^  ^
+         set g d      ^  ^
+         sub g b      ^  ^
+         jnz g -13 ---^  ^
+      v- jnz f 2         ^
+      v  sub h -1        ^
+      -> set g b         ^
+         sub g c         ^
+   v---- jnz g 2         ^
+   v  v- jnz 1 3         ^
+   -->v  sub b -17       ^
+      v  jnz 1 -23 ------^
+
+b = 79;
+c = b; // 79
+b *= 100; // b = 7900
+b -= -100000; // b = 107900
+c = b; // c = 107900
+c -= -17000; // c = 124900
+loop {
+	f = 1;
+	d = 2;
+	loop {
+		e = 2;
+		loop {
+			g = d;
+			g *= e;
+			g -= b;
+			if g == 0 {
+				f = 0;
+			}
+			e -= -1;
+			g = e;
+			g -= b;
+			if g == 0 {
+				break;
+			}
+		}
+		d -= -1;
+		g = d;
+		g -= b;
+		if g == 0 {
+			break;
+		}
+	}
+	if f == 0 {
+		h -= -1;
+	}
+	g = b;
+	g -= c;
+	if g == 0 {
+		return h;
+	}
+	b -= -17;
+}
