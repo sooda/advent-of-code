@@ -2,6 +2,8 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::BufRead;
 
+use std::ops::Add;
+
 type Pins = usize;
 
 #[derive(Debug)]
@@ -17,7 +19,7 @@ fn parse_line(line: &str) -> Component {
     Component { a: a, b: b }
 }
 
-fn drawgraphviz(strewn: &[Component]) {
+fn _drawgraphviz(strewn: &[Component]) {
     println!("graph {{");
     //let conns = Vec::new();
     for (i, c) in strewn.iter().enumerate() {
@@ -34,79 +36,39 @@ fn drawgraphviz(strewn: &[Component]) {
     println!("}}");
 }
 
-fn dfs(level: usize, strewn: &[Component], ci: usize, in_port_a: bool, conns: &[(Vec<(usize, bool)>, Vec<(usize, bool)>)], visited: &mut [bool]) -> usize {
+type ConnsList = Vec<(usize, bool)>;
+
+fn dfs_level<Score: Ord + Add<Output = Score>, ScoreFn>(strewn: &[Component], ci: usize, in_port_a: bool,
+       conns: &[(ConnsList, ConnsList)], visited: &mut [bool], score: &ScoreFn) -> Option<Score>
+    where ScoreFn: Fn(&Component) -> Score {
     let c = &strewn[ci];
     if visited[ci] {
-        return 0;
+        return None;
     }
-    //println!("{:->1$} lev {2} {3}/{4}", "", level, level, c.a, c.b);
     visited[ci] = true;
-    let ret = if in_port_a {
-        c.a + c.b + conns[ci].1.iter()
-            .map(|&(neigh_ci, neigh_in)| dfs(level+1, strewn, neigh_ci, neigh_in, conns, visited)).max().unwrap_or(0)
-    } else {
-        c.a + c.b + conns[ci].0.iter()
-            .map(|&(neigh_ci, neigh_in)| dfs(level+1, strewn, neigh_ci, neigh_in, conns, visited)).max().unwrap_or(0)
-    };
-    //println!("{:->1$} lev {2} {3}/{4} skore {5}", "", level, level, c.a, c.b, ret);
-    visited[ci] = false; // mark this free for further calls; alternatively a clone of visited for each call could work
-    ret
-}
 
-// ugh but it doesn't make sense to dfs these really? at least not with a simple visited map...
-// however, a proper search might not be that heavy in this graph, looks like so
-fn depth(strewn: &[Component]) -> usize {
-    let mut conns = Vec::new(); // list of indices from either port
-    for (i, c) in strewn.iter().enumerate() {
-        let (mut a, mut b) = (Vec::new(), Vec::new());
-        for (j, cc) in strewn.iter().enumerate() {
-            if j == i {
-                continue;
-            }
-            if c.a == cc.a {
-                a.push((j, true));
-            }
-            if c.a == cc.b {
-                a.push((j, false));
-            }
-            if c.b == cc.a {
-                b.push((j, true));
-            }
-            if c.b == cc.b {
-                b.push((j, false));
-            }
-        }
-        conns.push((a, b));
-    }
-    let mut visited = vec![false; strewn.len()];
-    let amax = strewn.iter().enumerate().filter(|&(_, c)| c.a == 0).map(|(ci, _)| dfs(0, strewn, ci, true, &conns, &mut visited)).max().unwrap_or(0);
-    let bmax = strewn.iter().enumerate().filter(|&(_, c)| c.b == 0).map(|(ci, _)| dfs(0, strewn, ci, false, &conns, &mut visited)).max().unwrap_or(0);
-    amax.max(bmax)
-}
-
-fn dfs2(level: usize, strewn: &[Component], ci: usize, in_port_a: bool, conns: &[(Vec<(usize, bool)>, Vec<(usize, bool)>)], visited: &mut [bool]) -> (usize, usize) {
-    let c = &strewn[ci];
-    if visited[ci] {
-        return (0, 0);
-    }
-    //println!("{:->1$} lev {2} {3}/{4}", "", level, level, c.a, c.b);
-    visited[ci] = true;
-    let child = if in_port_a {
+    let neigh_iter = if in_port_a {
         conns[ci].1.iter()
-            .map(|&(neigh_ci, neigh_in)| dfs2(level+1, strewn, neigh_ci, neigh_in, conns, visited)).max().unwrap_or((0, 0))
     } else {
         conns[ci].0.iter()
-            .map(|&(neigh_ci, neigh_in)| dfs2(level+1, strewn, neigh_ci, neigh_in, conns, visited)).max().unwrap_or((0, 0))
     };
-    let ret = (1 + child.0, c.a + c.b + child.1);
-    //println!("{:->1$} lev {2} {3}/{4} skore {5}", "", level, level, c.a, c.b, ret);
+
+    let child_scores = neigh_iter.filter_map(
+        |&(neigh_ci, neigh_in)| dfs_level(strewn, neigh_ci, neigh_in, conns, visited, score)
+    ).max();
     visited[ci] = false; // mark this free for further calls; alternatively a clone of visited for each call could work
-    ret
+
+    if let Some(child_scores) = child_scores {
+        Some(score(c) + child_scores)
+    } else {
+        // no neighbors - leaf node in this component domino chain
+        Some(score(c))
+    }
 }
 
-// ugh but it doesn't make sense to dfs these really? at least not with a simple visited map...
-// however, a proper search might not be that heavy in this graph, looks like so
-fn depth2(strewn: &[Component]) -> (usize, usize) {
+// could also model this as a tricky trigraph for three nodes for each component; then dfs_level
+// and stuff would be easier
+fn compute_connectivity(strewn: &[Component]) -> Vec<(ConnsList, ConnsList)> {
     let mut conns = Vec::new(); // list of indices from either port
     for (i, c) in strewn.iter().enumerate() {
         let (mut a, mut b) = (Vec::new(), Vec::new());
@@ -129,15 +91,44 @@ fn depth2(strewn: &[Component]) -> (usize, usize) {
         }
         conns.push((a, b));
     }
+    conns
+}
+
+fn dfs_max<Score, ScoreFn>(strewn: &[Component], score: &ScoreFn) -> Score
+where Score: Ord + Add<Output = Score>,
+      ScoreFn: Fn(&Component) -> Score {
+    let conns = compute_connectivity(strewn);
     let mut visited = vec![false; strewn.len()];
-    let amax = strewn.iter().enumerate().filter(|&(_, c)| c.a == 0).map(|(ci, _)| dfs2(0, strewn, ci, true, &conns, &mut visited)).max().unwrap_or((0, 0));
-    let bmax = strewn.iter().enumerate().filter(|&(_, c)| c.b == 0).map(|(ci, _)| dfs2(0, strewn, ci, false, &conns, &mut visited)).max().unwrap_or((0, 0));
-    amax.max(bmax)
+    let a_start_compos = strewn.iter().enumerate().filter(|&(_, c)| c.a == 0).map(|(ci, _)| (ci, true));
+    let b_start_compos = strewn.iter().enumerate().filter(|&(_, c)| c.b == 0).map(|(ci, _)| (ci, false));
+    a_start_compos.chain(b_start_compos)
+        .filter_map(|(ci, start_a)| dfs_level(strewn, ci, start_a, &conns, &mut visited, score))
+        .max().unwrap()
+}
+
+fn strongest_bridge(strewn: &[Component]) -> usize {
+    let strength_score = |c: &Component| c.a + c.b;
+    dfs_max(strewn, &strength_score)
+}
+
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
+struct LengthStrength(usize, usize);
+
+impl Add for LengthStrength {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        LengthStrength(self.0 + other.0, self.1 + other.1)
+    }
+}
+
+fn strongest_long_bridge(strewn: &[Component]) -> LengthStrength {
+    let longest_plus_strength_score = |c: &Component| LengthStrength(1, c.a + c.b);
+    dfs_max(strewn, &longest_plus_strength_score)
 }
 
 fn main() {
     let compo_strewn = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().map(|x| parse_line(&x.unwrap())).collect::<Vec<_>>();
-    println!("{}", depth(&compo_strewn));
-    println!("{:?}", depth2(&compo_strewn));
+    println!("{}", strongest_bridge(&compo_strewn));
+    println!("{:?}", strongest_long_bridge(&compo_strewn));
 }
