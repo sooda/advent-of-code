@@ -1,169 +1,66 @@
+// compile with either:
+// rustc --cfg 'csimode="copypasta"'
+// or:
+// rustc --cfg 'csimode="fancy"'
+// see further below for experiments.
+
 use std::fs::File;
 use std::io::BufReader;
 use std::io::BufRead;
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-struct Block2([[u8; 2]; 2]);
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-struct Block3([[u8; 3]; 3]);
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-struct Block4([[u8; 4]; 4]);
-
-//#[derive(Debug)]
-//struct Rule2to3(Block2, Block3);
-//#[derive(Debug)]
-//struct Rule3to4(Block3, Block4);
-
-#[derive(Debug)]
-enum Rule {
-    Rule2to3(Block2, Block3),
-    Rule3to4(Block3, Block4)
-}
-use Rule::*;
-
-fn parse_two(dst: &mut Block2, src: &[u8]) {
-    let off = "../".len();
-    dst.0[0].copy_from_slice(&src[0..2]);
-    dst.0[1].copy_from_slice(&src[off..off + 2]);
-}
-
-fn parse_three(dst: &mut Block3, src: &[u8]) {
-    //println!("{:?}", src);
-    let off = ".../".len();
-    dst.0[0].copy_from_slice(&src[0..3]);
-    dst.0[1].copy_from_slice(&src[off..off + 3]);
-    dst.0[2].copy_from_slice(&src[2*off..2*off + 3]);
-}
-
-fn parse_four(dst: &mut Block4, src: &[u8]) {
-    //println!("{:?}", src);
-    let off = "..../".len();
-    dst.0[0].copy_from_slice(&src[0..4]);
-    dst.0[1].copy_from_slice(&src[off..off + 4]);
-    dst.0[2].copy_from_slice(&src[2*off..2*off + 4]);
-    dst.0[3].copy_from_slice(&src[3*off..3*off + 4]);
-}
-
-fn parse_line(line: &str) -> Rule {
-    let bytes = line.as_bytes();
-    let two_pattern_len = "../..".len();
-    let three_pattern_len = ".../.../...".len();
-    let four_pattern_len = "..../..../..../....".len();
-    let arrow_len = " => ".len();
-    if line.len() == "../.. => ###/.##/#..".len() {
-        let mut from = Block2([[0; 2]; 2]);
-        let mut to = Block3([[0; 3]; 3]);
-        parse_two(&mut from, &bytes[0..two_pattern_len]);
-        //println!("{:?} {:?}", line, from);
-        parse_three(&mut to, &bytes[two_pattern_len + arrow_len..
-                                    two_pattern_len + arrow_len + three_pattern_len]);
-        //println!("{:?} {:?}", line, to);
-        Rule2to3(from, to)
-    } else if line.len() == ".../.../... => #.#./#..#/#.##/#.#.".len() {
-        let mut from = Block3([[0; 3]; 3]);
-        let mut to = Block4([[0; 4]; 4]);
-        parse_three(&mut from, &bytes[0..three_pattern_len]);
-        //println!("{:?} {:?}", line, from);
-        parse_four(&mut to, &bytes[three_pattern_len + arrow_len..
-                                    three_pattern_len + arrow_len + four_pattern_len]);
-        //println!("{:?} {:?}", line, to);
-        Rule3to4(from, to)
-    } else {
-        unreachable!()
-    }
-}
-
-/*
-struct Block2([[u8; 2]; 2]);
-
-impl Block2 {
-    fn from(src: &[u8], x: usize, y: usize) -> Self {
-        let mut b = Block2([[0; 2]; 2]);
-        let w = (src.len() as f64).sqrt() as usize;
+// Square block of pixels, implemented as an array. A vector-based block with runtime-deduceable
+// size might require less code, but I just wanted to see how this gets overengineered. And plain
+// arrays might optimize better, and even a 4x4 array of u8 is just 128 bits so they might even fit
+// in registers.
+//
+// And really u8 is unnecessary waste because just single bits could be used for these black-white
+// pieces of art. Rotations and flips of bit patterns would be fun to write as just number lookups
+// (4x4 has just 16 bits so it's doable) or even with arithmetic, but gotta stop somewhere... Now
+// this would generalize to multi-color art.
+pub trait Block: std::marker::Sized + PartialEq + Eq + Copy + Clone {
+    const N: usize;
+    type T;
+    fn new() -> Self;
+    fn row_mut(&mut self, i: usize) -> &mut [u8];
+    fn row(&self, i: usize) -> &[u8];
+    fn from_canvas(src: &[u8], x: usize, y: usize) -> Self {
+        let mut b = Self::new();
+        let w = (src.len() as f64).sqrt().ceil() as usize;
         let off = y * w + x;
-        for i in 0..2 {
-            b.0[i].copy_from_slice(&src[off+i*w..off+i*w + 2]);
-        }
-        b
-    }
-}
-
-*/
-//struct Block3([[u8; 3]; 3]);
-
-impl Block2 {
-    fn from(src: &[u8], x: usize, y: usize) -> Self {
-        let mut b = Block2([[0; 2]; 2]);
-        let w = (src.len() as f64).sqrt() as usize;
-        let off = y * w + x;
-        for i in 0..2 {
-            b.0[i].copy_from_slice(&src[off+i*w..off+i*w + 2]);
-        }
-        b
-    }
-    fn flip(&self) -> Self {
-        let mut b = Block2([[0; 2]; 2]);
-        b.0[0][0] = self.0[1][0];
-        b.0[0][1] = self.0[1][1];
-        b.0[1][1] = self.0[0][1];
-        b.0[1][0] = self.0[0][0];
-        b
-    }
-    fn rotleft(&self) -> Self {
-        let mut b = Block2([[0; 2]; 2]);
-        b.0[0][0] = self.0[0][1];
-        b.0[0][1] = self.0[1][1];
-        b.0[1][1] = self.0[1][0];
-        b.0[1][0] = self.0[0][0];
-        b
-    }
-    fn rotright(&self) -> Self {
-        let mut b = Block2([[0; 2]; 2]);
-        b.0[0][1] = self.0[0][0];
-        b.0[1][1] = self.0[0][1];
-        b.0[1][0] = self.0[1][1];
-        b.0[0][0] = self.0[1][0];
-        b
-    }
-    fn rot180(&self) -> Self {
-        let mut b = Block2([[0; 2]; 2]);
-        b.0[0][0] = self.0[1][1];
-        b.0[0][1] = self.0[1][0];
-        b.0[1][1] = self.0[0][0];
-        b.0[1][0] = self.0[0][1];
-        b
-    }
-}
-
-impl Block3 {
-    fn from(src: &[u8], x: usize, y: usize) -> Self {
-        let mut b = Block3([[0; 3]; 3]);
-        let w = (src.len() as f64).sqrt() as usize;
-        let off = y * w + x;
-        for i in 0..3 {
-            b.0[i].copy_from_slice(&src[off+i*w..off+i*w + 3]);
+        for i in 0..Self::N {
+            let pos = off + i * w;
+            b.row_mut(i).copy_from_slice(&src[pos .. pos + Self::N]);
         }
         b
     }
 
-    fn to(&self, dst: &mut [u8], x: usize, y: usize) {
+    fn parse(src: &[u8]) -> Self {
+        let mut b = Self::new();
+        // ../.., .../.../...
+        for i in 0..Self::N {
+            let pos = i * (Self::N + 1);
+            b.row_mut(i).copy_from_slice(&src[pos .. pos + Self::N]);
+        }
+        b
+    }
+
+    fn to_canvas(&self, dst: &mut [u8], x: usize, y: usize) {
         let w = (dst.len() as f64).sqrt().ceil() as usize;
-        //println!("aaa {:?} {:?}", *self, w);
         let off = y * w + x;
-        for i in 0..3 {
-            //println!("q {:?}", &dst[off+i*w..off+i*w + 3]);
-            dst[off+i*w..off+i*w + 3].copy_from_slice(&self.0[i]);
-            //println!("w {:?}", &dst[off+i*w..off+i*w + 3]);
+        for i in 0..Self::N {
+            let pos = off + i * w;
+            dst[pos .. pos + Self::N].copy_from_slice(self.row(i));
         }
     }
-    fn transform<F>(&self, f: F) -> Self
-    where F: Fn(usize, usize) -> (usize, usize) {
-        let mut b = Block3([[0; 3]; 3]);
 
-        for y in 0..3 {
-            for x in 0..3 {
+    fn transform<F>(&self, f: F) -> Self
+        where F: Fn(usize, usize) -> (usize, usize) {
+        let mut b = Self::new();
+
+        for y in 0..Self::N {
+            for x in 0..Self::N {
                 let src = f(x, y);
-                b.0[y][x] = self.0[src.1][src.0];
+                b.row_mut(y)[x] = self.row(src.1)[src.0];
             }
         }
 
@@ -171,27 +68,19 @@ impl Block3 {
     }
     fn flip(&self) -> Self {
         /*
-         * 012
-         * 345
-         * 678
-         *
-         * 210
-         * 543
-         * 876
+         * 012    210
+         * 345 -> 543
+         * 678    876
          */
-        self.transform(|x, y| (2 - x, y))
+        self.transform(|x, y| (Self::N - 1 - x, y))
     }
     fn rotleft(&self) -> Self {
         /*
-         * 012
-         * 345
-         * 678
-         *
-         * 258 0,0: 2,0   2,0: 2,2
-         * 147 2,1: 1,2
-         * 036 0,2: 0,0
+         * 012    258
+         * 345 -> 147
+         * 678    036
          */
-        self.transform(|x, y| (2 - y, x))
+        self.transform(|x, y| (Self::N - 1 - y, x))
     }
     fn rotright(&self) -> Self {
         self.rotleft().rotleft().rotleft()
@@ -201,52 +90,59 @@ impl Block3 {
     }
 }
 
-//struct Block4([[u8; 4]; 4]);
-
-impl Block4 {
-    /*
-    fn from(src: &[u8], x: usize, y: usize) -> Self {
-        let mut b = Block4([[0; 4]; 4]);
-        let w = (src.len() as f64).sqrt().ceil() as usize;
-        let off = y * w + x;
-        for i in 0..4 {
-            b.0[i].copy_from_slice(&src[off+i*w..off+i*w + 4]);
+// to_canvas() isn't necessary for size 2 because they are only expanded, not written;
+// from_canvas() and rotations aren't necessary for size 4 because they aren't expanded further.
+// However, some are common, so they're all here.
+macro_rules! implement_block {
+    ($name:ident, $n: expr) => {
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+        pub struct $name([[u8; $n]; $n]);
+        impl Block for $name {
+            const N: usize = $n;
+            type T = $name;
+            fn new() -> Self { $name([[0; $n]; $n]) }
+            fn row_mut(&mut self, i: usize) -> &mut [u8] { &mut self.0[i] }
+            fn row(&self, i: usize) -> &[u8] { &self.0[i] }
         }
-        b
+    };
+}
+
+implement_block!(Block2, 2);
+implement_block!(Block3, 3);
+implement_block!(Block4, 4);
+
+#[derive(Debug)]
+pub enum Rule {
+    Rule2to3(Block2, Block3),
+    Rule3to4(Block3, Block4)
+}
+
+fn parse_line(line: &str) -> Rule {
+    // This could be generalized more but let's keep even this part understandable
+    let bytes = line.as_bytes();
+    let two_pattern_len = "../..".len();
+    let three_pattern_len = ".../.../...".len();
+    let four_pattern_len = "..../..../..../....".len();
+    let arrow_len = " => ".len();
+    if line.len() == "../.. => ###/.##/#..".len() {
+        let from = Block2::parse(&bytes[0..two_pattern_len]);
+        let to = Block3::parse(&bytes[two_pattern_len + arrow_len..
+                                    two_pattern_len + arrow_len + three_pattern_len]);
+        Rule::Rule2to3(from, to)
+    } else if line.len() == ".../.../... => #.#./#..#/#.##/#.#.".len() {
+        let from = Block3::parse(&bytes[0..three_pattern_len]);
+        let to = Block4::parse(&bytes[three_pattern_len + arrow_len..
+                                    three_pattern_len + arrow_len + four_pattern_len]);
+        Rule::Rule3to4(from, to)
+    } else {
+        unreachable!()
     }
-    */
-
-    fn to(&self, dst: &mut [u8], x: usize, y: usize) {
-        let w = (dst.len() as f64).sqrt().ceil() as usize;
-        //println!("aaa {:?} {:?}", *self, w);
-        let off = y * w + x;
-        for i in 0..4 {
-            //println!("q {:?}", &dst[off+i*w..off+i*w + 4]);
-            dst[off+i*w..off+i*w + 4].copy_from_slice(&self.0[i]);
-            //println!("w {:?}", &dst[off+i*w..off+i*w + 4]);
-        }
-    }
 }
 
-    /*
-fn expand_2to3(dest: &mut Block3, src: &mut Block2, rules: &[Rule]) {
-        let mut b = Block2([[0; 2]; 2]);
-        let w = (src.len() as f64).sqrt() as usize;
-        let off = y * w + x;
-        for i in 0..2 {
-            b.0[i].copy_from_slice(&src[off+i*w..off+i*w + 2]);
-        }
-        b
-}
-*/
-
-/*
-for (d, t) in dest.iter_mut().zip(to.iter()) {
-    d.copy_from_slice(t);
-}
-*/
-fn apply_2to3(src: &Block2, from: &Block2, to: &Block3) -> Option<Block3> {
-    //println!("eh2? {:?} {:?} {:?}", src, from, to);
+// Could just combine flips and single rotlefts until we've found all combinations, but hard-coding
+// all of the eight variations here is good enough.
+pub fn apply_upscale<Src, Dst>(src: &Src, from: &Src, to: &Dst) -> Option<Dst>
+where Src: Block, Dst: Block {
     if *src == *from {
         Some(to.clone())
     } else if src.rotleft() == *from {
@@ -268,44 +164,24 @@ fn apply_2to3(src: &Block2, from: &Block2, to: &Block3) -> Option<Block3> {
     }
 }
 
+mod csi_copypasta {
+use {Block, Block2, Block3, Block4, Rule, apply_upscale};
+
 fn expand_2to3(src: &Block2, rules: &[Rule]) -> Block3 {
     for r in rules {
-        if let &Rule2to3(from, to) = r {
-            if let Some(ret) = apply_2to3(src, &from, &to) {
+        if let &Rule::Rule2to3(from, to) = r {
+            if let Some(ret) = apply_upscale(src, &from, &to) {
                 return ret;
             }
         }
     }
     unreachable!()
-}
-
-fn apply_3to4(src: &Block3, from: &Block3, to: &Block4) -> Option<Block4> {
-    //println!("eh3? {:?} {:?} {:?}", src, from, to);
-    if *src == *from {
-        Some(to.clone())
-    } else if src.rotleft() == *from {
-        Some(to.clone())
-    } else if src.rotright() == *from {
-        Some(to.clone())
-    } else if src.rot180() == *from {
-        Some(to.clone())
-    } else if src.flip() == *from {
-        Some(to.clone())
-    } else if src.flip().rotleft() == *from {
-        Some(to.clone())
-    } else if src.flip().rotright() == *from {
-        Some(to.clone())
-    } else if src.flip().rot180() == *from {
-        Some(to.clone())
-    } else {
-        None
-    }
 }
 
 fn expand_3to4(src: &Block3, rules: &[Rule]) -> Block4 {
     for r in rules {
-        if let &Rule3to4(from, to) = r {
-            if let Some(ret) = apply_3to4(src, &from, &to) {
+        if let &Rule::Rule3to4(from, to) = r {
+            if let Some(ret) = apply_upscale(src, &from, &to) {
                 return ret;
             }
         }
@@ -313,17 +189,16 @@ fn expand_3to4(src: &Block3, rules: &[Rule]) -> Block4 {
     unreachable!()
 }
 
-fn enhance(canvas: &Vec<u8>, rules: &[Rule]) -> Vec<u8> {
+pub fn enhance(canvas: &Vec<u8>, rules: &[Rule]) -> Vec<u8> {
     let w = (canvas.len() as f64).sqrt().ceil() as usize;
     if w % 2 == 0 {
         let newsz = w / 2 * 3;
-        let mut ret = vec![b'.'; newsz * newsz];
+        let mut ret = vec![b'?'; newsz * newsz];
         for gridy in 0..(w / 2) {
             for gridx in 0..(w / 2) {
-                //println!("aaaaaaaaa {} {} {}", w, gridx, gridy);
-                let original = Block2::from(canvas, 2 * gridx, 2 * gridy);
+                let original = Block2::from_canvas(canvas, 2 * gridx, 2 * gridy);
                 let enhanced = expand_2to3(&original, rules);
-                enhanced.to(&mut ret, 3 * gridx, 3 * gridy);
+                enhanced.to_canvas(&mut ret, 3 * gridx, 3 * gridy);
             }
         }
         ret
@@ -332,10 +207,9 @@ fn enhance(canvas: &Vec<u8>, rules: &[Rule]) -> Vec<u8> {
         let mut ret = vec![b'?'; newsz * newsz];
         for gridy in 0..(w / 3) {
             for gridx in 0..(w / 3) {
-                //println!("bbbbbbb {} {} {}", w, gridx, gridy);
-                let original = Block3::from(canvas, 3 * gridx, 3 * gridy);
+                let original = Block3::from_canvas(canvas, 3 * gridx, 3 * gridy);
                 let enhanced = expand_3to4(&original, rules);
-                enhanced.to(&mut ret, 4 * gridx, 4 * gridy);
+                enhanced.to_canvas(&mut ret, 4 * gridx, 4 * gridy);
             }
         }
         ret
@@ -343,6 +217,98 @@ fn enhance(canvas: &Vec<u8>, rules: &[Rule]) -> Vec<u8> {
         unreachable!()
     }
 }
+
+} // csi_copypasta
+
+mod csi_fancy {
+use {Block, Block2, Block3, Block4, Rule, apply_upscale};
+
+// rule execution for enhancing (expanding) a single cell in a canvas grid
+trait Expansion {
+    type From: Block;
+    type To: Block;
+    fn destruct_rule(r: &Rule) -> Option<(Self::From, Self::To)>;
+}
+
+struct Exp2to3 {}
+
+impl Expansion for Exp2to3 {
+    type From = Block2;
+    type To = Block3;
+    fn destruct_rule(r: &Rule) -> Option<(Self::From, Self::To)> {
+        if let &Rule::Rule2to3(from, to) = r {
+            Some((from, to))
+        } else {
+            None
+        }
+    }
+}
+
+struct Exp3to4 {}
+
+impl Expansion for Exp3to4 {
+    type From = Block3;
+    type To = Block4;
+    fn destruct_rule(r: &Rule) -> Option<(Self::From, Self::To)> {
+        if let &Rule::Rule3to4(from, to) = r {
+            Some((from, to))
+        } else {
+            None
+        }
+    }
+}
+
+fn expand<E>(src: &E::From, rules: &[Rule]) -> E::To
+where E: Expansion {
+    for r in rules {
+        // I wish I could "if let &E::RuleValue(from, to)" somehow to avoid destruct_rule
+        if let Some((from, to)) = E::destruct_rule(&r) {
+            if let Some(ret) = apply_upscale(src, &from, &to) {
+                return ret;
+            }
+        }
+    }
+    unreachable!()
+}
+
+fn enhance_grid_cells<E>(canvas: &Vec<u8>, rules: &[Rule]) -> Vec<u8>
+where E: Expansion {
+    let w = (canvas.len() as f64).sqrt().ceil() as usize;
+    let newsz = w / E::From::N * E::To::N;
+
+    let mut ret = vec![b'?'; newsz * newsz];
+
+    for gridy in 0..(w / E::From::N) {
+        for gridx in 0..(w / E::From::N) {
+            let original = E::From::from_canvas(canvas, E::From::N * gridx, E::From::N * gridy);
+            // why no inference? expand(&original, rules) doesn't compile
+            let enhanced = expand::<E>(&original, rules);
+            enhanced.to_canvas(&mut ret, E::To::N * gridx, E::To::N * gridy);
+        }
+    }
+
+    ret
+}
+
+pub fn enhance(canvas: &Vec<u8>, rules: &[Rule]) -> Vec<u8> {
+    let w = (canvas.len() as f64).sqrt().ceil() as usize;
+
+    if w % 2 == 0 {
+        enhance_grid_cells::<Exp2to3>(canvas, rules)
+    } else if w % 3 == 0 {
+        enhance_grid_cells::<Exp3to4>(canvas, rules)
+    } else {
+        unreachable!()
+    }
+}
+
+} // csi_fancy
+
+#[cfg(csimode = "copypasta")]
+use csi_copypasta::enhance;
+
+#[cfg(csimode = "fancy")]
+use csi_fancy::enhance;
 
 fn on_pixels_after(rules: &[Rule], iterations: usize) -> usize {
     let mut canvas = vec![
@@ -354,9 +320,9 @@ fn on_pixels_after(rules: &[Rule], iterations: usize) -> usize {
     for _i in 0..iterations {
         //println!("render loop: {} {} {}", _i, canvas.len(), (canvas.len() as f64).sqrt().ceil() as usize);
         let w = (canvas.len() as f64).sqrt().ceil() as usize;
-        for row in canvas.chunks(w) {
-            // println!("{:?}", row.iter().map(|&x| x as char).collect::<String>());
-        }
+        //for row in canvas.chunks(w) {
+        //    println!("{:?}", row.iter().map(|&x| x as char).collect::<String>());
+        //}
         println!("{} {} {}", _i, w, canvas.iter().filter(|&&pixel| pixel == b'#').count());
         canvas = enhance(&canvas, rules);
     }
