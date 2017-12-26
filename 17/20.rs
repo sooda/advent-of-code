@@ -7,7 +7,7 @@ use regex::Regex;
 
 use std::ops;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Vec3(i64, i64, i64);
 
 #[derive(Debug, Clone, Copy)]
@@ -56,86 +56,34 @@ fn zeroest_particle(universe: &mut [Point]) -> usize {
     // idk, maybe it will converge in this time
     let steps = 2 * universe.iter().map(|p| p.p.0.max(p.p.1.max(p.p.2)))
         .max().unwrap() as usize;
-    // println!("{}", steps);
     for _i in 0..steps {
         step(universe);
-        /*
-        let min_i = universe.iter().map(|p| p.p.0.abs() + p.p.1.abs() + p.p.2.abs()).enumerate()
-            .min_by(|&(_, x), &(_, y)| x.cmp(&y)).unwrap();
-        println!("{} {:?}", _i, min_i);
-        */
     }
     let min_i = universe.iter().map(|p| p.p.0.abs() + p.p.1.abs() + p.p.2.abs()).enumerate()
         .min_by(|&(_, x), &(_, y)| x.cmp(&y)).unwrap();
     min_i.0
 }
 
-//#[derive(Debug)]
-//struct A(Point);
-type A = Point;
-//struct A(usize, Point);
-/*
-struct B(Vec<A>);
-use std::iter::FromIterator;
-impl FromIterator<(usize, Point)> for B {
-    fn from_iter<I: IntoIterator<Item=(usize, Point)>>(iter: I) -> Self {
-        let mut v = B::new();
-        for i in iter {
-            v.add(A(i.0, i.1));
-        }
-        v
-    }
-}
-*/
-
-/*
-use std::cmp::Ordering;
-
-impl Ord for A {
-    fn cmp(&self, other: &A) -> Ordering {
-        //println!("cmp {:?} {:?}", self, other);
-        self.p.cmp(&other.p)
-    }
-}
-
-impl PartialOrd for A {
-    fn partial_cmp(&self, other: &A) -> Option<Ordering> {
-        println!("peq {:?} {:?}", self, other);
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for A {
-    fn eq(&self, other: &A) -> bool {
-        println!("eq {:?} {:?}", self, other);
-        (self).p == (other).p
-    }
-}
-
-impl Eq for A { }
-*/
-
 fn del_collisions(universe: &mut Vec<Point>) -> usize {
     let mut next = 0;
-    let mut orig_len = universe.len();
+    let orig_len = universe.len();
     loop {
         if next == universe.len() {
             break;
         }
-        //println!("hit? {}", next);
         // remove all duplicates, including the original
-        let kill_pos = universe[next].p.clone();
-        //println!("pos {:?}?", kill_pos);
+        let kill_pos = universe[next].p;
         let mut deleted = false;
         loop {
             if let Some(remove_pos) = {
                 // skip is just an optimization - no dupes before this one
                 universe.iter().skip(next + 1).position(|&other| other.p == kill_pos)
             } {
-                println!("yes {} {:?}", next + 1 + remove_pos, universe[next + 1 + remove_pos]);
                 deleted = true;
-                universe.remove(next + 1 + remove_pos); // could also swap_remove
-                // hold for another possible duplicate
+                // could also swap_remove i guess, it doesn't affect the already processed order
+                // but makes the debug prints hard to read.
+                universe.remove(next + 1 + remove_pos);
+                // stay in this loop for another possible duplicate
             } else {
                 break;
             }
@@ -152,134 +100,107 @@ fn del_collisions(universe: &mut Vec<Point>) -> usize {
     orig_len - universe.len()
 }
 
-fn collision_winners(universe: &mut Vec<Point>) -> usize {
-    // doing all this with FromIter traits etc is just too nasty
-    /*
-    let mut indexed_universe = Vec::new();
-    for i in universe.iter().cloned().enumerate() {
-        indexed_universe.push(A(i.0, i.1));
-    }
-    */
+fn del_escaper(universe: &mut Vec<Point>, exiting_origin: &[bool]) -> bool {
+    // In a non-empty universe, there is always one for all these.
+    // This is executed after dropping colliding duplicates.
 
-    // exiting, _or_ staying put
+    // Consider these two one-dimensional cases:
+    // 1)
+    // particle P has velocity  V, acceleration  A, pos X
+    // particle Q has velocity -V, acceleration -A, pos Y < X
+    // the first has max pos, the second max velocity since max gives the last one in the list.
+    // 2)
+    // particle P has velocity  V, acceleration  A, pos X
+    // particle Q has velocity  V, acceleration  A, pos X-n
+    // max pos gives us P, max velocity Q.
+    //
+    // To fix: prefer the index that max pos finds, by also considering the position after the
+    // velocity in comparison key.
+
+    let furthest_idx = [
+        universe.iter().enumerate().max_by_key(|&(_, p)| p.p.0.abs()).unwrap().0,
+        universe.iter().enumerate().max_by_key(|&(_, p)| p.p.1.abs()).unwrap().0,
+        universe.iter().enumerate().max_by_key(|&(_, p)| p.p.2.abs()).unwrap().0,
+    ];
+
+    let fastest_idx = [
+        universe.iter().enumerate().max_by_key(|&(_, p)| (p.v.0.abs(), p.p.0.abs())).unwrap().0,
+        universe.iter().enumerate().max_by_key(|&(_, p)| (p.v.1.abs(), p.p.1.abs())).unwrap().0,
+        universe.iter().enumerate().max_by_key(|&(_, p)| (p.v.2.abs(), p.p.2.abs())).unwrap().0,
+    ];
+
+    // HOWEVER... looks like my input does not contain some corner cases. What if the furthest and
+    // fastest is exiting, but there is another particle just behind it, slightly slower, but
+    // accelerating faster so that it would collide soon?  This worked even without the below
+    // acceleration maximum.
+
+    let snappiest_idx = [
+        universe.iter().enumerate().max_by_key(|&(_, p)| (p.a.0.abs(), p.v.0.abs(), p.p.0.abs())).unwrap().0,
+        universe.iter().enumerate().max_by_key(|&(_, p)| (p.a.1.abs(), p.v.1.abs(), p.p.1.abs())).unwrap().0,
+        universe.iter().enumerate().max_by_key(|&(_, p)| (p.a.2.abs(), p.v.2.abs(), p.p.2.abs())).unwrap().0,
+    ];
+
+    println!("fu {:?} {:?} fa {:?} {:?}",
+             furthest_idx,
+             furthest_idx.iter().map(|&i| &universe[i]).collect::<Vec<_>>(),
+             fastest_idx,
+             fastest_idx.iter().map(|&i| &universe[i]).collect::<Vec<_>>(),
+             );
+
+    // Bleh, check just one dimension; should be enough. Dupes are annoying to track here.
+    let fp = furthest_idx[0];
+    let fv = fastest_idx[0];
+    let fa = snappiest_idx[0];
+    if fp == fv && fv == fa && exiting_origin[fp] {
+        // Can't touch this, ever, so ignore from further consideration
+        println!("escaping {:?}", universe[fp]);
+        universe.remove(fp);
+        true
+    } else {
+        false
+    }
+}
+
+fn collision_winners(universe: &mut Vec<Point>) -> usize {
+    // number of winners diverging from others, cut off during simulation
     let mut escaped = 0;
 
     for _i in 0.. {
         println!("i {}", _i);
-        /*
-        for ip in &mut indexed_universe {
-            println!("{:?}", ip);
-            ip.1.p += ip.1.v;
-            ip.1.v += ip.1.a;
-        }
-        */
-        //step2(universe);
-        //universe.sort();
-        let mut exiting_origin = vec![false; universe.len()];
-        for (p, exiting) in universe.iter_mut().zip(exiting_origin.iter_mut()) {
-            let v0 = p.v;
-            p.v += p.a;
-            p.p += p.v;
-            let dv = p.v - v0;
+        step(universe);
+
+        let exiting_origin = universe.iter().map(|&p| {
             // velocity has the same sign as acceleration? won't change direction
             let const_dir = p.v.0 * p.a.0 >= 0 && p.v.1 * p.a.1 >= 0 && p.v.2 * p.a.2 >= 0;
             // velocity has the same sign as position? pos growing away from zero
             let outwards = p.v.0 * p.p.0 >= 0 && p.v.1 * p.p.1 >= 0 && p.v.2 * p.p.2 >= 0;
-            //println!("{:?} {:?} {:?}", p, const_dir, outwards);
-            *exiting = const_dir && outwards;
-        }
+            const_dir && outwards
+        }).collect::<Vec<_>>();
+
         println!("exiting {} of {}",
                  exiting_origin.iter().filter(|&&x| x).count(),
                  universe.len());
 
-        for p in universe.iter() {
-            //println!("{:?}", p);
+        // for p in universe.iter() {
+        //     println!("{:?}", p);
+        // }
+
+        let orig_len = universe.len();
+        let collided = del_collisions(universe);
+        if collided > 0 {
+            println!("at {}, died {} of {}", _i, collided, orig_len);
         }
-        let len = universe.len();
-        let coll = del_collisions(universe);
-        if coll > 0 {
-            println!("at {}, died {} of {}", _i, coll, len);
-        }
+
+        // this applies for when dropped a last escaper in last step as well
         if universe.len() == 0 {
             println!("all gone at {}", _i);
             break;
         }
 
-        let mut furthest = [
-            universe.iter().enumerate().max_by_key(|&(_, p)| p.p.0.abs()).unwrap().0,
-            universe.iter().enumerate().max_by_key(|&(_, p)| p.p.1.abs()).unwrap().0,
-            universe.iter().enumerate().max_by_key(|&(_, p)| p.p.2.abs()).unwrap().0,
-        ];
-        let mut fastest = [
-            universe.iter().enumerate().max_by_key(|&(_, p)| p.v.0.abs()).unwrap().0,
-            universe.iter().enumerate().max_by_key(|&(_, p)| p.v.1.abs()).unwrap().0,
-            universe.iter().enumerate().max_by_key(|&(_, p)| p.v.2.abs()).unwrap().0,
-        ];
-        furthest.sort_by(|a, b| b.cmp(a));
-        fastest.sort_by(|a, b| b.cmp(a));
-
-        println!("{:?} {:?}", furthest, fastest);
-        //for (&fu, &fa) in furthest.iter().zip(fastest.iter()) {
-        {
-            // based on just x is a slower b oundary condition but it doesn't matter to be just
-            // conservative
-            let fu = furthest[0];
-            let fa = fastest[0];
-            // can't touch this
-            if fu == fa && exiting_origin[fu] {
-                println!("at {}, escaping {:?}", _i, universe[fu]);
-                let del = universe.len() - 1;
-                universe.remove(del);
-                escaped += 1;
-                if universe.len() == 0 {
-                    break;
-                }
-            }
+        if del_escaper(universe, &exiting_origin) {
+            escaped += 1;
         }
-            /*
-        if exiting_origin.iter().all(|&x| x) {
-            println!("done in {}", _i);
-            break;
-        }
-        */
-        //println!("{} {}", _i, universe.len());
-        /*
-        for i in 0..indexed_universe.len() {
-            if i == indexed_universe.len() {
-                break;
-            }
-            loop {
-                let remove_pos = {
-                    let last = &indexed_universe[i];
-                    let pos = indexed_universe.iter().skip(i + 1)
-                        .position(|ref x| x.1.p == last.1.p);
-                    if let Some(pos) = pos {
-                        println!("del {} of {}", i + pos, indexed_universe.len());
-                        pos
-                    } else {
-                        break
-                    }
-                };
-                indexed_universe.swap_remove(remove_pos);
-            }
-        }
-        */
-        /*
-        indexed_universe.sort();
-        indexed_universe.dedup();
-        */
     }
-    /*
-    let mut a = vec![
-        (0, Point { p: Vec3(0, 0, 0), v: Vec3(10, 0, 0), a: Vec3(0, 0, 0) }),
-        (1, Point { p: Vec3(0, 0, 0), v: Vec3(20, 0, 0), a: Vec3(0, 0, 0) }),
-    ];
-
-    for i in &mut a {
-        i.1.p += i.1.v;
-    }
-    println!("{:?}", a);
-    */
 
     escaped
 }
