@@ -143,21 +143,14 @@ fn parse_line(line: &str) -> Rule {
 // all of the eight variations here is good enough.
 pub fn apply_upscale<Src, Dst>(src: &Src, from: &Src, to: &Dst) -> Option<Dst>
 where Src: Block, Dst: Block {
-    if *src == *from {
-        Some(to.clone())
-    } else if src.rotleft() == *from {
-        Some(to.clone())
-    } else if src.rotright() == *from {
-        Some(to.clone())
-    } else if src.rot180() == *from {
-        Some(to.clone())
-    } else if src.flip() == *from {
-        Some(to.clone())
-    } else if src.flip().rotleft() == *from {
-        Some(to.clone())
-    } else if src.flip().rotright() == *from {
-        Some(to.clone())
-    } else if src.flip().rot180() == *from {
+    if *src == *from
+        || src.rotleft() == *from
+        || src.rotright() == *from
+        || src.rot180() == *from
+        || src.flip() == *from
+        || src.flip().rotleft() == *from
+        || src.flip().rotright() == *from
+        || src.flip().rot180() == *from {
         Some(to.clone())
     } else {
         None
