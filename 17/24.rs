@@ -38,9 +38,10 @@ fn _drawgraphviz(strewn: &[Component]) {
 
 type ConnsList = Vec<(usize, bool)>;
 
-fn dfs_level<Score: Ord + Add<Output = Score>, ScoreFn>(strewn: &[Component], ci: usize, in_port_a: bool,
-       conns: &[(ConnsList, ConnsList)], visited: &mut [bool], score: &ScoreFn) -> Option<Score>
-    where ScoreFn: Fn(&Component) -> Score {
+fn dfs_level<Score, ScoreFn>(strewn: &[Component], ci: usize, in_port_a: bool,
+                             conns: &[(ConnsList, ConnsList)],
+                             visited: &mut [bool], score: &ScoreFn) -> Option<Score>
+where Score: Ord + Add<Output = Score>, ScoreFn: Fn(&Component) -> Score {
     let c = &strewn[ci];
     if visited[ci] {
         return None;
@@ -95,8 +96,7 @@ fn compute_connectivity(strewn: &[Component]) -> Vec<(ConnsList, ConnsList)> {
 }
 
 fn dfs_max<Score, ScoreFn>(strewn: &[Component], score: &ScoreFn) -> Score
-where Score: Ord + Add<Output = Score>,
-      ScoreFn: Fn(&Component) -> Score {
+where Score: Ord + Add<Output = Score>, ScoreFn: Fn(&Component) -> Score {
     let conns = compute_connectivity(strewn);
     let mut visited = vec![false; strewn.len()];
     let a_start_compos = strewn.iter().enumerate().filter(|&(_, c)| c.a == 0).map(|(ci, _)| (ci, true));
