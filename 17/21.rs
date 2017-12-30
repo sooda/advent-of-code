@@ -19,7 +19,6 @@ use std::io::BufRead;
 // this would generalize to multi-color art.
 pub trait Block: std::marker::Sized + PartialEq + Eq + Copy + Clone {
     const N: usize;
-    type T;
     fn new() -> Self;
     fn row_mut(&mut self, i: usize) -> &mut [u8];
     fn row(&self, i: usize) -> &[u8];
@@ -99,7 +98,6 @@ macro_rules! implement_block {
         pub struct $name([[u8; $n]; $n]);
         impl Block for $name {
             const N: usize = $n;
-            type T = $name;
             fn new() -> Self { $name([[0; $n]; $n]) }
             fn row_mut(&mut self, i: usize) -> &mut [u8] { &mut self.0[i] }
             fn row(&self, i: usize) -> &[u8] { &self.0[i] }
