@@ -3,51 +3,35 @@ use std::io::BufReader;
 use std::io::BufRead;
 
 fn exactly_n(id: &str, n: usize) -> bool {
-    for x in b'a'..=b'z' {
-        let found = id.bytes().filter(|&c| c == x).count();
-        if found == n {
-            return true;
-        }
-    }
-
-    false
+    let good_letter = |&l: &u8| id.bytes().filter(|&c| c == l).count() == n;
+    return (b'a'..=b'z').find(good_letter).is_some();
 }
 
 fn compare_boxes(a: &str, b: &str) -> Option<String> {
-    let mut pos = None;
-    for (i, (x, y)) in a.chars().zip(b.chars()).enumerate() {
-        if x != y {
-            if pos.is_some() {
-                // more than one chars differ
-                return None;
-            }
-            pos = Some(i);
-        }
-    }
-    if let Some(pos) = pos {
-        let chs = a.chars().enumerate()
-            .filter(|&(i, _)| i != pos)
-            .map(|(_, c)| c).collect::<Vec<_>>();
+    let mut indexed_mismatches = a.chars().zip(b.chars()).enumerate()
+        .filter(|(_, (x, y))| x != y);
+    if let Some(first_mismatch) = indexed_mismatches.next() {
+        if indexed_mismatches.next().is_some() {
+            // must have just one differing letter
+            None
+        } else {
+            // first and the only
+            let uncommon_pos = first_mismatch.0;
+            let chs = a.chars().enumerate()
+                .filter(|&(i, _)| i != uncommon_pos)
+                .map(|(_, c)| c).collect::<Vec<_>>();
 
-        Some(chs.into_iter().collect())
+            Some(chs.into_iter().collect())
+        }
     } else {
         // exactly the same
         unreachable!();
     }
 }
 fn proto_fabric_boxes(ids: &[String]) -> String {
-    for a in ids {
-        for b in ids {
-            if a != b {
-                let common_letters = compare_boxes(a, b);
-                if let Some(cl) = common_letters {
-                    return cl;
-                }
-            }
-        }
-    }
-
-    unreachable!()
+    let pairs = ids.iter().flat_map(|b| ids.iter().map(move |a| (a, b)));
+    return pairs.filter(|(a, b)| a != b)
+        .find_map(|(a, b)| compare_boxes(&a, &b)).unwrap();
 }
 
 fn main() {
