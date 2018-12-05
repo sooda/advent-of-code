@@ -26,8 +26,15 @@ fn react(polymer: &mut String) {
 }
 
 fn main() {
-    let mut polymer = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
+    let polymer = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().next().unwrap().unwrap();
-    react(&mut polymer);
-    println!("{} {}", polymer.len(), polymer);
+    let mut orig_reacted = polymer.clone();
+    react(&mut orig_reacted);
+    println!("{} {}", orig_reacted.len(), orig_reacted);
+
+    println!("{:?}", (b'a'..=b'z').map(|c| {
+        let mut mutant = polymer.replace(c as char, "").replace((c - 32) as char, "");
+        react(&mut mutant);
+        (mutant.len(), c as char)
+    }).min().unwrap());
 }
