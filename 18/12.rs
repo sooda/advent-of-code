@@ -37,23 +37,40 @@ fn spread(pots: &Vec<u8>, rules: &[[u8; 5]]) -> Vec<u8> {
     next
 }
 
-fn sum_planted_pots(mut pots: Vec<u8>, rules: &[[u8; 5]], rounds: usize) -> i32 {
-    let pad = pots.len();
+fn score(pots: &[u8], offset: usize) -> usize {
+    pots.iter().enumerate()
+        .map(|(i, &pot)| if pot == b'#' { i - offset } else { 0 })
+        .sum()
+}
+
+fn sum_planted_pots(mut pots: Vec<u8>, rules: &[[u8; 5]], rounds: usize) -> usize {
+    let pad = 3 * pots.len();
     // Add padding - no way it can grow this much. Now 0th is pots[pad]
     for _ in 0..pad {
         pots.push(b'.');
         pots.insert(0, b'.');
     }
 
-    for _ in 0..rounds {
+    let mut prev_score = 0;
+    let mut prev_diff = 0;
+    for i in 0..rounds {
         let next = spread(&pots, &rules);
-        println!("{}", String::from_utf8_lossy(&next));
+        let current_score = score(&next, pad);
+        let score_diff = current_score - prev_score;
+
+        // println!("{:6} {:6} {}", current_score, score_diff, String::from_utf8_lossy(&next));
+
+        if score_diff == prev_diff {
+            // converged
+            let iters_to_go = rounds - 1 - i;
+            return current_score + iters_to_go * score_diff;
+        }
+        prev_score = current_score;
+        prev_diff = score_diff;
         pots = next;
     }
 
-    pots.iter().enumerate()
-        .map(|(i, &pot)| if pot == b'#' { (i - pad) as i32 } else { 0 })
-        .sum::<i32>()
+    score(&pots, pad)
 }
 
 fn main() {
@@ -67,5 +84,6 @@ fn main() {
     let rules = lines.filter_map(|line| parse_rule(&line.unwrap())).collect::<Vec<_>>();
 
     let pots = init_state_str.bytes().collect::<Vec<_>>();
-    println!("{}", sum_planted_pots(pots, &rules, 20));
+    println!("{}", sum_planted_pots(pots.clone(), &rules, 20));
+    println!("{}", sum_planted_pots(pots, &rules, 50000000000));
 }
