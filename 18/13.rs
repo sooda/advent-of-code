@@ -113,26 +113,50 @@ fn dump(map: &[Vec<char>], carts: &[Cart]) {
     println!("");
 }
 
-fn step(map: &[Vec<char>], carts: &mut [Cart]) -> Option<(usize, usize)> {
-    for i in 0..carts.len() {
+fn detect_collision(carts: &[Cart], i: usize, x: usize, y: usize) -> Option<(usize)> {
+    let collision = carts.iter().enumerate()
+        .filter(|&(j, _)| j != i)
+        .find(|(_, c)| c.x == x && c.y == y);
+    if let Some((j, _)) = collision {
+        Some(j)
+    } else {
+        None
+    }
+}
+fn step(map: &[Vec<char>], carts: &mut Vec<Cart>) -> Option<(usize, usize)> {
+    let mut crash = None;
+    let mut i = 0;
+    while i < carts.len() {
         let new = slide(&carts[i], &map);
-        let collision = carts.iter().enumerate()
-            .filter(|&(j, _)| j != i)
-            .any(|(_, c)| c.x == new.x && c.y == new.y);
-        if collision {
-            return Some((new.x, new.y))
+        if let Some(j) = detect_collision(carts, i, new.x, new.y) {
+            let a = i.min(j);
+            let b = i.max(j);
+            carts.remove(b);
+            carts.remove(a);
+            crash = Some((new.x, new.y));
+            if a < i {
+                // deleted behind us
+                i -= 1;
+            } else {
+                // i unchanged; remove shifts next elements here
+            }
+            // might be easier to mark deletions in another map and delete after? however, the
+            // "instantly remove the two crashing carts" sounds like it has to be done this way or
+            // else the collision detection should also know about the deletion map.
+        } else {
+            carts[i] = new;
+            i += 1;
         }
-        carts[i] = new;
     }
 
-    None
+    crash
 }
 
 fn reorder(carts: &mut [Cart]) {
     carts.sort_unstable_by(|a, b| (a.y, a.x).cmp(&(b.y, b.x)));
 }
 
-fn play(map: &[Vec<char>], carts: &mut [Cart]) -> (usize, usize) {
+fn play_until_crash(map: &[Vec<char>], carts: &mut Vec<Cart>) -> (usize, usize) {
     loop {
         dump(&map, carts);
         if let Some(collision) = step(&map, carts) {
@@ -140,6 +164,17 @@ fn play(map: &[Vec<char>], carts: &mut [Cart]) -> (usize, usize) {
         }
         reorder(carts);
     }
+}
+
+fn play_until_end(map: &[Vec<char>], carts: &mut Vec<Cart>) -> (usize, usize) {
+    while carts.len() > 1 {
+        dump(&map, carts);
+        step(&map, carts);
+        reorder(carts);
+    }
+    dump(&map, carts);
+
+    (carts[0].x, carts[0].y)
 }
 
 fn main() {
@@ -158,6 +193,8 @@ fn main() {
         }
     }
     let map = map; // mutated no more
-    let endpos = play(&map, &mut carts);
-    println!("{},{}", endpos.0, endpos.1);
+    let endpos = play_until_crash(&map, &mut carts.clone());
+    println!("a: {},{}", endpos.0, endpos.1);
+    let endpos = play_until_end(&map, &mut carts);
+    println!("b: {},{}", endpos.0, endpos.1);
 }
