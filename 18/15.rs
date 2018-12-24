@@ -8,8 +8,6 @@ use std::collections::VecDeque;
 
 #[derive(Debug)]
 struct Unit {
-    beginx: i32,
-    beginy: i32,
     x: i32,
     y: i32,
     hp: usize,
@@ -19,7 +17,6 @@ struct Unit {
 impl Unit {
     fn clone(&self) -> Unit {
         Unit {
-            beginx: self.beginx, beginy: self.beginy,
             x: self.x, y: self.y,
             hp: self.hp, charclass: self.charclass
         }
@@ -78,7 +75,7 @@ fn pathfind(map: &[Vec<char>], units: &[Unit], x: i32, y: i32) -> HashMap<(i32, 
     distances
 }
 
-fn punchable<'a>(units: &'a mut Vec<Unit>, player: Unit) -> Option<&'a mut Unit> {
+fn punchable<'a>(units: &'a mut Vec<Unit>, player: &Unit) -> Option<&'a mut Unit> {
     let enemies = units.iter_mut().filter(|e| e.charclass != player.charclass && e.hp > 0);
     let in_range = enemies.filter(|e| (e.x - player.x).abs() + (e.y - player.y).abs() == 1);
     let mut targets: Vec<&'a mut Unit> = in_range.collect();
@@ -96,7 +93,7 @@ fn punch(target: &mut Unit, attack_power: usize) {
 }
 
 // may find no enemies in this mode as well; in that case, shortcut out of combat
-fn attack(units: &mut Vec<Unit>, player: usize) -> bool {
+fn attack(units: &mut Vec<Unit>, player: usize, elf_power: usize) -> bool {
     let current = units[player].clone();
     let out = units.iter().filter(|e| e.charclass != current.charclass && e.hp > 0).count() == 0;
     if out {
@@ -104,8 +101,9 @@ fn attack(units: &mut Vec<Unit>, player: usize) -> bool {
         false
     } else {
         // enemy nearby?
-        if let Some(badguy) = punchable(units, current) {
-            punch(badguy, 3);
+        if let Some(badguy) = punchable(units, &current) {
+            let power = if current.charclass == 'E' { elf_power } else { 3 };
+            punch(badguy, power);
         }
         true
     }
@@ -157,7 +155,7 @@ fn find_movement(map: &[Vec<char>], units: &mut Vec<Unit>, player: usize) -> Opt
     }
 }
 
-fn turn(map: &[Vec<char>], units: &mut Vec<Unit>, player: usize) -> bool {
+fn turn(map: &[Vec<char>], units: &mut Vec<Unit>, player: usize, elf_power: usize) -> bool {
     if let Some(next_pos) = find_movement(map, units, player) {
         let current = &mut units[player];
         // movement for attack is trivial
@@ -165,10 +163,10 @@ fn turn(map: &[Vec<char>], units: &mut Vec<Unit>, player: usize) -> bool {
         current.y = next_pos.1;
     }
 
-    attack(units, player)
+    attack(units, player, elf_power)
 }
 
-fn step(map: &[Vec<char>], units: &mut Vec<Unit>) -> bool {
+fn step(map: &[Vec<char>], units: &mut Vec<Unit>, elf_power: usize) -> bool {
     for i in 0..units.len() {
         if units[i].hp == 0 {
             continue;
@@ -177,7 +175,7 @@ fn step(map: &[Vec<char>], units: &mut Vec<Unit>) -> bool {
             println!("u {} to move from {},{} in:", i, units[i].x, units[i].y);
             dump(map, units);
         }
-        if !turn(map, units, i) {
+        if !turn(map, units, i, elf_power) {
             // no enemies found
             return false;
         }
@@ -186,7 +184,7 @@ fn step(map: &[Vec<char>], units: &mut Vec<Unit>) -> bool {
     true
 }
 
-fn combat(map: &[Vec<char>], units: &mut Vec<Unit>) -> usize {
+fn combat(map: &[Vec<char>], units: &mut Vec<Unit>, elf_power: usize) -> usize {
     for round in 0.. {
         reorder(units);
         if false {
@@ -196,7 +194,7 @@ fn combat(map: &[Vec<char>], units: &mut Vec<Unit>) -> usize {
                 println!("u {}: {:?}", i, u);
             }
         }
-        if !step(map, units) {
+        if !step(map, units, elf_power) {
             // unfinished round doesn't count
             return round;
         } else {
@@ -212,11 +210,30 @@ fn combat(map: &[Vec<char>], units: &mut Vec<Unit>) -> usize {
     unreachable!()
 }
 
-fn play(map: &[Vec<char>], units: &mut Vec<Unit>) -> usize {
-    let full_rounds = combat(map, units);
-    let winner_score = units.iter().map(|u| u.hp).sum::<usize>();
+fn play(map: &[Vec<char>], units: &Vec<Unit>) -> usize {
+    let mut game_units = units.iter().map(|u| u.clone()).collect::<Vec<_>>();
+    let full_rounds = combat(map, &mut game_units, 3);
+    let winner_score = game_units.iter().map(|u| u.hp).sum::<usize>();
     println!("full rounds {}, pts {}", full_rounds, winner_score);
+    dump(map, &game_units);
     return full_rounds * winner_score;
+}
+
+fn elves_ftw(map: &[Vec<char>], units: &Vec<Unit>) -> usize {
+    for elf_power in 3.. {
+        let mut game_units = units.iter().map(|u| u.clone()).collect::<Vec<_>>();
+        let full_rounds = combat(map, &mut game_units, elf_power);
+        let winner_score = game_units.iter().map(|u| u.hp).sum::<usize>();
+        println!("pow {}, full rounds {}, pts {}", elf_power, full_rounds, winner_score);
+        dump(map, &game_units);
+        let losses = game_units.iter()
+            .filter(|u| u.charclass == 'E' && u.hp == 0)
+            .count();
+        if losses == 0 {
+            return full_rounds * winner_score;
+        }
+    }
+    unreachable!()
 }
 
 fn main() {
@@ -226,8 +243,6 @@ fn main() {
     for (y, row) in map.iter_mut().enumerate() {
         for (x, charclass) in row.iter_mut().enumerate().filter(|(_, &mut b)| "EG".contains(b)) {
             units.push(Unit {
-                beginx: x as i32,
-                beginy: y as i32,
                 x: x as i32,
                 y: y as i32,
                 hp: 200,
@@ -237,6 +252,7 @@ fn main() {
         }
     }
 
-    println!("{}", play(&map, &mut units));
-    dump(&map, &units);
+    println!("{}", play(&map, &units));
+
+    println!("{}", elves_ftw(&map, &units));
 }
