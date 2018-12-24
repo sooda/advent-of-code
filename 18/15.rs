@@ -50,37 +50,32 @@ fn walkable(map: &[Vec<char>], units: &[Unit], x: i32, y: i32) -> bool {
     ok_terrain && free_pos
 }
 
-type PathFound = (usize, i32, i32, i32, i32);
-
-// FIXME: could bfs all goals in one go
-//
-// dist, goalx, goaly, newx, newy
-fn pathfind(map: &[Vec<char>], units: &[Unit], x: i32, y: i32, goalx: i32, goaly: i32) -> Option<PathFound> {
+fn pathfind(map: &[Vec<char>], units: &[Unit], x: i32, y: i32) -> HashMap<(i32, i32), (usize, i32, i32)> {
     let mut queue = VecDeque::new();
     let mut distances = HashMap::new();
 
     let needs_check = |x, y, distances: &HashMap<_, _>|
         walkable(map, units, x, y) && !distances.contains_key(&(x, y));
 
-    queue.push_back((x, y, 0));
-    distances.insert((x, y), 0);
+    for &(xi, yi) in &[(x, y - 1), (x - 1, y), (x + 1, y), (x, y + 1)] {
+        if walkable(map, units, xi, yi) {
+            queue.push_back((xi, yi, xi, yi, 0));
+            distances.insert((xi, yi), (0, xi, yi));
+        }
+    }
 
     while let Some(current) = queue.pop_front() {
-        let (xi, yi, dist) = current;
+        let (xi, yi, x0, y0, dist) = current;
 
         for &(xj, yj) in &[(xi - 1, yi), (xi + 1, yi), (xi, yi - 1), (xi, yi + 1)] {
             if needs_check(xj, yj, &distances) {
-                queue.push_back((xj, yj, dist + 1));
-                distances.insert((xj, yj), dist + 1);
+                queue.push_back((xj, yj, x0, y0, dist + 1));
+                distances.insert((xj, yj), (dist + 1, x0, y0));
             }
         }
     }
 
-    if let Some(dist) = distances.get(&(goalx, goaly)) {
-        Some((*dist, goalx, goaly, x, y))
-    } else {
-        None
-    }
+    distances
 }
 
 fn punchable<'a>(units: &'a mut Vec<Unit>, player: Unit) -> Option<&'a mut Unit> {
@@ -89,7 +84,6 @@ fn punchable<'a>(units: &'a mut Vec<Unit>, player: Unit) -> Option<&'a mut Unit>
     let mut targets: Vec<&'a mut Unit> = in_range.collect();
     // reverse order so pop works
     targets.sort_unstable_by(|a, b| (b.hp, b.y, b.x).cmp(&(a.hp, a.y, a.x)));
-    // this would work: Some(&mut units[0])
     targets.pop()
 }
 
@@ -117,7 +111,7 @@ fn attack(units: &mut Vec<Unit>, player: usize) -> bool {
     }
 }
 
-fn find_movement(map: &[Vec<char>], units: &mut Vec<Unit>, player: usize) -> Option<Vec<PathFound>> {
+fn find_movement(map: &[Vec<char>], units: &mut Vec<Unit>, player: usize) -> Option<(i32, i32)> {
     let current = &units[player];
     let enemies = units.iter().filter(|&u| u.charclass != current.charclass && u.hp > 0).collect::<Vec<_>>();
     if enemies.is_empty() {
@@ -127,33 +121,21 @@ fn find_movement(map: &[Vec<char>], units: &mut Vec<Unit>, player: usize) -> Opt
 
     let mut in_range = Vec::new();
 
+    let pathinfos = pathfind(map, units, current.x, current.y);
+
     // already in the range?
-    // FIXME this is terrible for perf
     for e in &enemies {
         let near_lr = current.x == e.x && (current.y - e.y).abs() == 1;
         let near_ud = current.y == e.y && (current.x - e.x).abs() == 1;
         if near_lr || near_ud {
             // go to combat, movement is trivial
-            return Some(Vec::new());
-        } else {
-            for src in &[(-1, 0), (1, 0), (0, -1), (0, 1)] {
-                let go_x = current.x + src.0;
-                let go_y = current.y + src.1;
-                if !walkable(map, units, go_x, go_y) {
-                    continue;
-                }
-                for dst in &[(-1, 0), (1, 0), (0, -1), (0, 1)] {
-                    let e_x = e.x + dst.0;
-                    let e_y = e.y + dst.1;
-                    if map[e_y as usize][e_x as usize] != '.' {
-                        continue;
-                    }
-                    // FIXME: modify pathfind to tell the new position too
-                    if let Some(pathinfo) = pathfind(map, units, go_x, go_y, e_x, e_y) {
-                        in_range.push(pathinfo);
-                    } else {
-                    }
-                }
+            return Some((current.x, current.y));
+        }
+        for dst in &[(-1, 0), (1, 0), (0, -1), (0, 1)] {
+            let e_x = e.x + dst.0;
+            let e_y = e.y + dst.1;
+            if let Some(&(dist, sx, sy)) = pathinfos.get(&(e_x, e_y)) {
+                in_range.push((dist, e_x, e_y, sx, sy));
             }
         }
     }
@@ -161,17 +143,26 @@ fn find_movement(map: &[Vec<char>], units: &mut Vec<Unit>, player: usize) -> Opt
     // sort by distance, then by reading order of goal (i.e., y then x), then reading order of move
     in_range.sort_unstable_by(|a, b| (a.0, a.2, a.1, a.4, a.3).cmp(&(b.0, b.2, b.1, b.4, b.3)));
 
-    Some(in_range)
+    if false && player == 4 {
+        println!("dist ex ey sx sy");
+        for x in &in_range {
+            println!("  {:?}", x);
+        }
+    }
+
+    if let Some(route) = in_range.get(0) {
+        Some((route.3, route.4))
+    } else {
+        Some((current.x, current.y))
+    }
 }
 
 fn turn(map: &[Vec<char>], units: &mut Vec<Unit>, player: usize) -> bool {
-    if let Some(in_range) = find_movement(map, units, player) {
+    if let Some(next_pos) = find_movement(map, units, player) {
         let current = &mut units[player];
-        if !in_range.is_empty() {
-            // movement for attack is trivial
-            current.x = in_range[0].3;
-            current.y = in_range[0].4;
-        }
+        // movement for attack is trivial
+        current.x = next_pos.0;
+        current.y = next_pos.1;
     }
 
     attack(units, player)
@@ -181,6 +172,10 @@ fn step(map: &[Vec<char>], units: &mut Vec<Unit>) -> bool {
     for i in 0..units.len() {
         if units[i].hp == 0 {
             continue;
+        }
+        if false {
+            println!("u {} to move from {},{} in:", i, units[i].x, units[i].y);
+            dump(map, units);
         }
         if !turn(map, units, i) {
             // no enemies found
@@ -195,6 +190,7 @@ fn combat(map: &[Vec<char>], units: &mut Vec<Unit>) -> usize {
     for round in 0.. {
         reorder(units);
         if false {
+            println!("round {}", round);
             dump(map, units);
             for (i, u) in units.iter().enumerate() {
                 println!("u {}: {:?}", i, u);
