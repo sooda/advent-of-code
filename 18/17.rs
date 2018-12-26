@@ -200,7 +200,7 @@ fn droplet(g: &mut Ground, x: usize, mut y: usize) -> WaterPlacement {
     }
 }
 
-fn pour(g: &mut Ground) -> usize {
+fn pour(g: &mut Ground) -> (usize, usize) {
     let x = g.pour_x;
     let y = 0;
     let mut i = 0;
@@ -211,7 +211,10 @@ fn pour(g: &mut Ground) -> usize {
             dunp(g);
         }
     }
-    g.map.iter().filter(|&&x| x == Water || x == Channel).count()
+    let water = g.map.iter().filter(|&&x| x == Water).count();
+    let hypothetical = g.map.iter().filter(|&&x| x == Channel).count();
+
+    (water + hypothetical, water)
 }
 
 fn main() {
@@ -225,7 +228,7 @@ fn main() {
     if false {
         dunp(&ground);
     }
-    println!("{}", score);
+    println!("{:?}", score);
     if false {
         dump_ppm(&ground);
     }
