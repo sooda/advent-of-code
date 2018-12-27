@@ -63,32 +63,74 @@ fn magic(map: &[Vec<char>], next: &mut [Vec<char>]) {
     }
 }
 
-fn play(map: &mut Vec<Vec<char>>) -> usize {
+fn score(map: &[Vec<char>]) -> usize {
+    let trees = map.iter().flat_map(|row| row.iter().filter(|&&tile| tile == TREE)).count();
+    let lumberyards = map.iter().flat_map(|row| row.iter().filter(|&&tile| tile == YARD)).count();
+
+    //println!("{} * {} = {}", trees, lumberyards, trees * lumberyards);
+    //println!("");
+
+    trees * lumberyards
+}
+
+fn animate(map: &mut Vec<Vec<char>>, n: usize) -> usize {
     let w = map[0].len();
     let h = map.len();
 
     let mut next = vec![vec!['?'; w]; h];
 
-    for i in 1..=10 {
+    for i in 1..=n {
         magic(map, &mut next);
-        println!("After {} minutes:", i);
         for (ro, ri) in map.iter_mut().zip(next.iter()) {
             ro.copy_from_slice(ri);
         }
+        println!("After {} minutes:", i);
         dunp(map);
+        println!("");
     }
 
-    let trees = map.iter().flat_map(|row| row.iter().filter(|&&tile| tile == TREE)).count();
-    let lumberyards = map.iter().flat_map(|row| row.iter().filter(|&&tile| tile == YARD)).count();
+    score(map)
+}
 
-    println!("{} * {}", trees, lumberyards);
+fn cycle_len(v: &Vec<usize>) -> usize {
+    for len in 1.. {
+        let a = v.iter().rev();
+        let b = v.iter().rev().skip(len);
+        if a.zip(b).take(len).all(|(a, b)| a == b) {
+            return len;
+        }
+    }
+    unreachable!()
+}
 
-    trees * lumberyards
+fn cycledetect(map: &mut Vec<Vec<char>>, n: usize) -> usize {
+    let w = map[0].len();
+    let h = map.len();
+    let stabilize_time = 1000;
+    let mut history = Vec::new();
+
+    let mut next = vec![vec!['?'; w]; h];
+
+    for i in 0..=stabilize_time {
+        magic(map, &mut next);
+        for (ro, ri) in map.iter_mut().zip(next.iter()) {
+            ro.copy_from_slice(ri);
+        }
+        history.push(score(map));
+    }
+    let cycle = cycle_len(&history);
+    println!("c: {}", cycle);
+    // After big enough a, any f(a) + f(a + b * C) for integer b.
+    // For big n = a + b * C, find reasonable b to get 1000 - C <= n + b * C < 1000
+    let b = (n - stabilize_time + cycle-1) / cycle; // round down to go safely under 1000 if exact match
+    let a = n - b * cycle - 1;
+    history[a]
 }
 
 fn main() {
     let mut map = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().map(|l| parse_line(&l.unwrap())).collect::<Vec<_>>();
     dunp(&map);
-    println!("{}", play(&mut map));
+    println!("{}", animate(&mut map.clone(), 10));
+    println!("{}", cycledetect(&mut map, 1000000000));
 }
