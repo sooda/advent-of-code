@@ -141,6 +141,11 @@ fn furthest_room(g: &Graph) -> usize {
     *dists.values().max().unwrap()
 }
 
+fn faraway_rooms(g: &Graph) -> usize {
+    let dists = bfs(g);
+    dists.values().filter(|&&d| d >= 1000).count()
+}
+
 fn main() {
     let guide = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().map(|l| l.unwrap().chars().collect::<Vec<char>>()).collect::<Vec<_>>();
@@ -157,5 +162,6 @@ fn main() {
         }
         render(&g);
         println!("{}", furthest_room(&g));
+        println!("{}", faraway_rooms(&g));
     }
 }
