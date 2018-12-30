@@ -3,40 +3,200 @@ use std::io::BufReader;
 use std::io::BufRead;
 use std::io::Lines;
 
-fn geologic_index(x: usize, y: usize, tx: usize, ty: usize, map: &Vec<usize>) -> usize {
+use std::collections::BinaryHeap;
+
+#[derive(Debug)]
+struct Cave {
+    depth: usize,
+    tx: usize, // target
+    ty: usize,
+    w: usize,
+    h: usize
+}
+
+fn geologic_index(x: usize, y: usize, c: &Cave, map: &Vec<usize>) -> usize {
     if x == 0 && y == 0 {
         0
-    } else if x == tx && y == ty {
+    } else if x == c.tx && y == c.ty {
         0
     } else if y == 0 {
         x * 16807
     } else if x == 0 {
         y * 48271
     } else {
-        let a = map[(y - 1) * (tx + 1) + x];
-        let b = map[y * (tx + 1) + x - 1];
+        let a = map[(y - 1) * c.w + x];
+        let b = map[y * c.w + x - 1];
         a * b
     }
 }
 
-fn expand_map(cave: &(usize, usize, usize)) -> Vec<usize> {
+fn expand_map(cave: &Cave) -> Vec<usize> {
     let mut v = Vec::new();
-    for y in 0..=cave.2 {
-        for x in 0..=cave.1 {
-            let index = geologic_index(x, y, cave.1, cave.2, &mut v);
-            let erosion_level = (index + cave.0) % 20183;
+    for y in 0..cave.h {
+        for x in 0..cave.w {
+            let index = geologic_index(x, y, cave, &mut v);
+            let erosion_level = (index + cave.depth) % 20183;
             v.push(erosion_level);
         }
     }
     v
 }
 
-fn total_risk(cave: &(usize, usize, usize)) -> usize {
+fn total_risk(cave: &Cave) -> usize {
     let levels = expand_map(cave);
     levels.iter().map(|&erosion_level| erosion_level % 3).sum()
 }
 
-fn parse_cave(input: &mut Lines<BufReader<File>>) -> (usize, usize, usize) {
+#[derive(Clone, Copy)]
+enum RegionType {
+    Rocky,
+    Wet,
+    Narrow,
+}
+use RegionType::*;
+
+#[derive(Debug, PartialEq, Clone, Copy, Eq, PartialOrd, Ord)]
+enum Equipped {
+    Gear,
+    Torch,
+    Neither,
+}
+use Equipped::*;
+
+fn equipment_fits(rt: RegionType, eq: Equipped) -> bool {
+    match rt {
+        Rocky => eq != Neither,
+        Wet => eq != Torch,
+        Narrow => eq != Gear,
+    }
+}
+
+fn eq2id(eq: Equipped) -> usize {
+    match eq {
+        Gear => 0,
+        Torch => 1,
+        Neither => 2,
+    }
+}
+
+fn pathfind(map: &[RegionType], w: usize, h: usize) -> Vec<Option<usize>> {
+    // negate the dist for max to be better so the heap works without a custom ord for the state
+    let mut heap: BinaryHeap<(i64, usize, usize, Equipped)> = BinaryHeap::new(); // -dist, x, y, equip
+    let mut distances = vec![None; w * h * 3];
+
+    let m_idx = |x, y| {
+        y * w + x
+    };
+
+    let d_idx = |x, y, eq| {
+        (w * h) * eq2id(eq) + m_idx(x, y)
+    };
+
+    distances[d_idx(0, 0, Torch)] = Some(0);
+    heap.push((0, 0, 0, Torch));
+
+    while let Some(current) = heap.pop() {
+        let (dist, xi, yi, eqi) = current;
+        let dist = (-dist) as usize;
+
+        if dist > distances[d_idx(xi, yi, eqi)].unwrap_or_else(|| std::usize::MAX) {
+            continue;
+        }
+
+        // Now we're kind of changing the equipment on the way; another method would be to test the
+        // change for current position only. That needs the dist checks etc again but might be
+        // actually more elegant and would match the spec, even if this seems elegant in a way.
+        for &eqj in &[Gear, Torch, Neither] {
+            for &(xj, yj) in &[(xi, yi), (xi - 1, yi), (xi + 1, yi), (xi, yi - 1), (xi, yi + 1)] {
+                let in_range = xj < w && yj < h;
+                let dpos = d_idx(xj, yj, eqj);
+
+                let travel_dist = if xi != xj || yi != yj { 1 } else { 0 };
+                let switch_dist = if eqi != eqj { 7 } else { 0 };
+                let dist_new = dist + travel_dist + switch_dist;
+
+                let should_visit = in_range && dist_new < distances[dpos].unwrap_or_else(|| std::usize::MAX);
+                let proper_eq = in_range && equipment_fits(map[m_idx(xj, yj)], eqj);
+                let proper_eq_here = equipment_fits(map[m_idx(xi, yi)], eqj);
+
+                if should_visit && proper_eq && proper_eq_here {
+                    heap.push((-(dist_new as i64), xj, yj, eqj));
+                    distances[dpos] = Some(dist_new);
+                }
+            }
+        }
+    }
+
+    if false {
+        print!("{: >5} ", "");
+        for x in 0..w {
+            print!("xx{:x>5} ", x);
+        }
+        println!("");
+        for y in 0..h {
+            for &eq in &[Gear, Torch, Neither] {
+                print!("{:y>5} ", y);
+                for x in 0..w {
+                    match map[y * w + x] {
+                        Rocky => print!("."),
+                        Wet => print!("="),
+                        Narrow => print!("|")
+                    }
+                    match eq {
+                        Gear => print!("g"),
+                        Torch => print!("t"),
+                        Neither => print!("n"),
+                    }
+                    match distances[d_idx(x, y, eq)] {
+                        Some(d) => print!("{:_>5} ", d),
+                        None => print!(",,,,, "),
+                    }
+                }
+                println!("");
+            }
+            println!("");
+        }
+    }
+
+    distances
+}
+
+fn parse_type(erosion_level: &usize) -> RegionType {
+    match erosion_level % 3 {
+        0 => Rocky,
+        1 => Wet,
+        2 => Narrow,
+        _ => unreachable!()
+    }
+}
+
+fn shortest(cave: &Cave) -> usize {
+    // reserve "some" extra space for cave exploration outside the known area
+    let cave = &Cave {
+        depth: cave.depth,
+        tx: cave.tx,
+        ty: cave.ty,
+        // this should be enough, the size is about 10 by 700
+        w: 5 * cave.w,
+        h: 2 * cave.h
+    };
+
+    let levels = expand_map(cave);
+    let region_types: Vec<_> = levels.iter().map(parse_type).collect();
+    let dists = pathfind(&region_types, cave.w, cave.h);
+
+    let m_idx = |x, y| {
+        y * cave.w + x
+    };
+
+    let d_idx = |x, y, eq| {
+        (cave.w * cave.h) * eq2id(eq) + m_idx(x, y)
+    };
+
+    dists[d_idx(cave.tx, cave.ty, Torch)].unwrap()
+}
+
+fn parse_cave(input: &mut Lines<BufReader<File>>) -> Cave {
     /*
      * depth: 11739
      * target: 11,718
@@ -48,7 +208,7 @@ fn parse_cave(input: &mut Lines<BufReader<File>>) -> (usize, usize, usize) {
     let mut xy = coords.split(",");
     let x = xy.next().unwrap().parse().unwrap();
     let y = xy.next().unwrap().parse().unwrap();
-    (depth, x, y)
+    Cave { depth: depth, tx: x, ty: y, w: x + 1, h: y + 1 }
 }
 
 fn main() {
@@ -56,4 +216,5 @@ fn main() {
     let cave = parse_cave(&mut input);
     println!("{:?}", cave);
     println!("{}", total_risk(&cave));
+    println!("{}", shortest(&cave));
 }
