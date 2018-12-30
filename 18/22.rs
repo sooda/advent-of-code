@@ -79,7 +79,9 @@ fn eq2id(eq: Equipped) -> usize {
     }
 }
 
-fn pathfind(map: &[RegionType], w: usize, h: usize) -> Vec<Option<usize>> {
+type Distances = Vec<Option<usize>>;
+
+fn pathfind(map: &[RegionType], w: usize, h: usize) -> Distances {
     // negate the dist for max to be better so the heap works without a custom ord for the state
     let mut heap: BinaryHeap<(i64, usize, usize, Equipped)> = BinaryHeap::new(); // -dist, x, y, equip
     let mut distances = vec![None; w * h * 3];
@@ -88,8 +90,19 @@ fn pathfind(map: &[RegionType], w: usize, h: usize) -> Vec<Option<usize>> {
         y * w + x
     };
 
-    let d_idx = |x, y, eq| {
+    let d_idx = |x, y, eq| -> usize {
         (w * h) * eq2id(eq) + m_idx(x, y)
+    };
+
+    let test_and_insert = |(x, y, eq), dist_new: usize, distances: &mut Distances, heap: &mut BinaryHeap<_>| {
+        let dpos = d_idx(x, y, eq);
+        let should_visit = dist_new < distances[dpos].unwrap_or_else(|| std::usize::MAX);
+        let proper_eq = equipment_fits(map[m_idx(x, y)], eq);
+
+        if should_visit && proper_eq {
+            heap.push((-(dist_new as i64), x, y, eq));
+            distances[dpos] = Some(dist_new);
+        }
     };
 
     distances[d_idx(0, 0, Torch)] = Some(0);
@@ -99,41 +112,18 @@ fn pathfind(map: &[RegionType], w: usize, h: usize) -> Vec<Option<usize>> {
         let (dist, xi, yi, eqi) = current;
         let dist = (-dist) as usize;
 
-        if dist > distances[d_idx(xi, yi, eqi)].unwrap_or_else(|| std::usize::MAX) {
-            continue;
-        }
-
-        // state changing edge
+        // equipment changing edge
         for &eqj in &[Gear, Torch, Neither] {
-            let dpos = d_idx(xi, yi, eqj);
-            let dist_new = dist + 7;
-
-            let should_visit = dist_new < distances[dpos].unwrap_or_else(|| std::usize::MAX);
-            let proper_eq = equipment_fits(map[m_idx(xi, yi)], eqj);
-
-            if should_visit && proper_eq {
-                heap.push((-(dist_new as i64), xi, yi, eqj));
-                distances[dpos] = Some(dist_new);
-            }
+            test_and_insert((xi, yi, eqj), dist + 7, &mut distances, &mut heap);
         }
 
         // walking edge
-        for &(xj, yj) in &[(xi, yi), (xi - 1, yi), (xi + 1, yi), (xi, yi - 1), (xi, yi + 1)] {
+        for &(xj, yj) in &[(xi - 1, yi), (xi + 1, yi), (xi, yi - 1), (xi, yi + 1)] {
             let in_range = xj < w && yj < h;
             if !in_range {
                 continue;
             }
-
-            let dpos = d_idx(xj, yj, eqi);
-            let dist_new = dist + 1;
-
-            let should_visit = dist_new < distances[dpos].unwrap_or_else(|| std::usize::MAX);
-            let proper_eq = equipment_fits(map[m_idx(xj, yj)], eqi);
-
-            if should_visit && proper_eq {
-                heap.push((-(dist_new as i64), xj, yj, eqi));
-                distances[dpos] = Some(dist_new);
-            }
+            test_and_insert((xj, yj, eqi), dist + 1, &mut distances, &mut heap);
         }
     }
 
