@@ -103,26 +103,36 @@ fn pathfind(map: &[RegionType], w: usize, h: usize) -> Vec<Option<usize>> {
             continue;
         }
 
-        // Now we're kind of changing the equipment on the way; another method would be to test the
-        // change for current position only. That needs the dist checks etc again but might be
-        // actually more elegant and would match the spec, even if this seems elegant in a way.
+        // state changing edge
         for &eqj in &[Gear, Torch, Neither] {
-            for &(xj, yj) in &[(xi, yi), (xi - 1, yi), (xi + 1, yi), (xi, yi - 1), (xi, yi + 1)] {
-                let in_range = xj < w && yj < h;
-                let dpos = d_idx(xj, yj, eqj);
+            let dpos = d_idx(xi, yi, eqj);
+            let dist_new = dist + 7;
 
-                let travel_dist = if xi != xj || yi != yj { 1 } else { 0 };
-                let switch_dist = if eqi != eqj { 7 } else { 0 };
-                let dist_new = dist + travel_dist + switch_dist;
+            let should_visit = dist_new < distances[dpos].unwrap_or_else(|| std::usize::MAX);
+            let proper_eq = equipment_fits(map[m_idx(xi, yi)], eqj);
 
-                let should_visit = in_range && dist_new < distances[dpos].unwrap_or_else(|| std::usize::MAX);
-                let proper_eq = in_range && equipment_fits(map[m_idx(xj, yj)], eqj);
-                let proper_eq_here = equipment_fits(map[m_idx(xi, yi)], eqj);
+            if should_visit && proper_eq {
+                heap.push((-(dist_new as i64), xi, yi, eqj));
+                distances[dpos] = Some(dist_new);
+            }
+        }
 
-                if should_visit && proper_eq && proper_eq_here {
-                    heap.push((-(dist_new as i64), xj, yj, eqj));
-                    distances[dpos] = Some(dist_new);
-                }
+        // walking edge
+        for &(xj, yj) in &[(xi, yi), (xi - 1, yi), (xi + 1, yi), (xi, yi - 1), (xi, yi + 1)] {
+            let in_range = xj < w && yj < h;
+            if !in_range {
+                continue;
+            }
+
+            let dpos = d_idx(xj, yj, eqi);
+            let dist_new = dist + 1;
+
+            let should_visit = dist_new < distances[dpos].unwrap_or_else(|| std::usize::MAX);
+            let proper_eq = equipment_fits(map[m_idx(xj, yj)], eqi);
+
+            if should_visit && proper_eq {
+                heap.push((-(dist_new as i64), xj, yj, eqi));
+                distances[dpos] = Some(dist_new);
             }
         }
     }
