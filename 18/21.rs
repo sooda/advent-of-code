@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 #[allow(dead_code)]
 fn l6_orig(r0: i64) {
     let mut r1: i64 = 0;
@@ -51,6 +53,7 @@ fn l6_orig(r0: i64) {
 }
 
 // slightly easier to read without the asm-level annotations
+#[allow(dead_code)]
 fn l6(r0: i64) {
     let mut r1: i64 = 0;
     let mut r2: i64 = 0;
@@ -93,6 +96,48 @@ fn l6(r0: i64) {
     }
 }
 
+fn find_cycle() -> i64 {
+    let mut r2: i64;
+    let mut r4: i64 = 0;
+    let mut seen = HashSet::new();
+    let mut prev = 0;
+
+    for _i in 0.. {
+        if seen.contains(&r4) {
+            // starts to repeat here; the previous value must be the end of the cycle
+            return prev;
+        } else {
+            seen.insert(r4);
+        }
+        prev = r4;
+
+        r2 = r4 | 0x10000;
+        r4 = 6152285;
+
+        r4 += r2 & 0xff;
+        r4 &= 0xffffff;
+        r4 *= 65899;
+        r4 &= 0xffffff;
+
+        assert!(r2 > 0xff);
+        r2 >>= 8;
+
+        r4 += r2 & 0xff;
+        r4 &= 0xffffff;
+        r4 *= 65899;
+        r4 &= 0xffffff;
+
+        assert!(r2 > 0xff);
+        r2 >>= 8;
+
+        r4 += r2 & 0xff;
+        r4 &= 0xffffff;
+        r4 *= 65899;
+        r4 &= 0xffffff;
+    }
+    unreachable!()
+}
+
 fn main() {
-    l6(0);
+    println!("{}", find_cycle());
 }
