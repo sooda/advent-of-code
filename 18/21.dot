@@ -1,0 +1,31 @@
+digraph {
+    subgraph cluster_src_level_bbs {
+        label="Source level blocks";
+        start_a -> L6_L16_a -> L17_L23_a -> L24_L25_a -> L26_L27_a -> L28_L30_a -> end_a;
+    }
+    subgraph cluster_cfg1_bbs {
+        label="Direct forward jumps into account";
+        start_b -> L6_L16_b;
+        L6_L16_b -> L17_L23_b;
+        L6_L16_b -> L28_L30_b;
+        L17_L23_b -> L24_L25_b;
+        L17_L23_b -> L26_L27_b;
+        L28_L30_b -> end_b;
+    }
+    subgraph cluster_cfg2_bbs {
+        label="Backwards jumps with some BBs split";
+        start_c -> L6_L7_c;
+        L6_L7_c -> L8_L16_c;
+        L8_L16_c -> L17_c [label="r2 >= 100"];
+        L8_L16_c -> L28_L30_c [label="r2 < 100"];
+        L17_c -> L18_L23_c;
+        L18_L23_c -> L24_L25_c [label="r5 <= r2"];
+        L18_L23_c -> L26_L27_c [label="r5 > r2"];
+        L24_L25_c -> L18_L23_c;
+        L26_L27_c -> L8_L16_c;
+        L28_L30_c -> L6_L7_c [label="r4 != r0"];
+        L28_L30_c -> end_c [label="r4 == r0"];
+        // I want the exit condition stuff in the bottom
+        L26_L27_c -> L28_L30_c [style=invis];
+    }
+}
