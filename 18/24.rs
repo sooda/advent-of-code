@@ -8,7 +8,8 @@ use std::cell::Cell;
 extern crate regex;
 use regex::Regex;
 
-#[derive(Debug)]
+// handy to clone a whole game but is this dangerous? accidental clones?
+#[derive(Debug, Clone)]
 struct Group {
     // Number of units is modified from group refs during fighting; can't hold mutable attack
     // target refs and shared attack source refs simultaneously to the same lists, so this is an ok
@@ -67,7 +68,7 @@ impl Group {
     }
 
     // would be real nice if target could be &mut Group to document that it's modified, ugh
-    fn affect_damage(&self, target: &Group) {
+    fn affect_damage(&self, target: &Group) -> bool {
         let damage = self.attack_damage(target);
         let killed_whole_units = damage / target.unit_hitpts;
         // Cell::update() is nightly :(
@@ -78,6 +79,8 @@ impl Group {
             0
         };
         target.units.set(remaining_units);
+
+        killed_whole_units > 0
     }
 }
 
@@ -190,8 +193,9 @@ fn select_targets<'a>(team: &'a [Group], enemies: &'a [Group]) -> TargetMap<'a> 
     target_order
 }
 
-fn fight(mut attacks: TargetMap) {
+fn fight(mut attacks: TargetMap) -> bool {
     attacks.sort_unstable_by_key(|(attacker, _)| -attacker.initiative);
+    let mut killed = 0;
 
     for (attacker, defender) in attacks {
         if false {
@@ -202,21 +206,30 @@ fn fight(mut attacks: TargetMap) {
         }
         // the attacker can die in a previous attack in this fight
         if attacker.alive() {
-            attacker.affect_damage(defender);
+            if attacker.affect_damage(defender) {
+                killed += 1;
+            }
         }
     }
+
+    killed != 0
 }
 
-fn round(game: &mut Game) {
+fn round(game: &mut Game) -> bool {
     let mut immu_targets = select_targets(&game.immune_system, &game.infection);
     let mut infe_targets = select_targets(&game.infection, &game.immune_system);
     let mut attacks = Vec::new();
     attacks.append(&mut immu_targets);
     attacks.append(&mut infe_targets);
-    fight(attacks);
+
+    fight(attacks)
 }
 
-fn play(game: &mut Game) -> i32 {
+fn play(game: &Game) -> Option<(i32, i32)> {
+    let mut game = Game {
+        immune_system: game.immune_system.clone(),
+        infection: game.infection.clone()
+    };
     while game.immune_system.iter().any(Group::alive) && game.infection.iter().any(Group::alive) {
         if false {
             println!("immu:");
@@ -229,10 +242,37 @@ fn play(game: &mut Game) -> i32 {
             }
             println!("");
         }
-        round(game);
+        if !round(&mut game) {
+            // neither of the teams can cause enough damage to kill units; this can never end
+            return None;
+        }
     }
+    Some((game.immune_system.iter().map(Group::unit_count).sum(),
+        game.infection.iter().map(Group::unit_count).sum()))
+}
+
+fn play_winner_score(game: &Game) -> i32 {
+    let (immu_score, inf_score) = play(game).unwrap();
     // no need to find out which one won; the dead has no units left
-    game.immune_system.iter().chain(game.infection.iter()).map(|grp| grp.unit_count()).sum()
+    immu_score + inf_score
+}
+
+fn play_immu_optimize(game: &Game) -> i32 {
+    let mut boost = 0;
+    loop {
+        let boost_group = move |mut g: Group| { g.attack_pts += boost; g };
+        let boosted_game = Game {
+            immune_system: game.immune_system.iter().cloned().map(boost_group).collect(),
+            infection: game.infection.clone()
+        };
+        // at some point we might end up stuck in the game
+        if let Some((immu_score, _)) = play(&boosted_game) {
+            if immu_score > 0 {
+                return immu_score;
+            }
+        }
+        boost += 1;
+    }
 }
 
 fn parse_game(input: &mut Lines<BufReader<File>>) -> Game {
@@ -248,6 +288,7 @@ fn parse_game(input: &mut Lines<BufReader<File>>) -> Game {
 
 fn main() {
     let mut input = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap()).lines();
-    let mut game = parse_game(&mut input);
-    println!("{}", play(&mut game));
+    let game = parse_game(&mut input);
+    println!("{}", play_winner_score(&game));
+    println!("{}", play_immu_optimize(&game));
 }
