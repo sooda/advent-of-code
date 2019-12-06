@@ -26,6 +26,32 @@ fn orbit_count(orbits: &HashMap<String, String>) -> usize {
     countmap.values().sum()
 }
 
+fn path_to_com<'a>(orbits: &'a HashMap<String, String>, from: &'a str) -> Vec<&'a str> {
+    let mut route = Vec::new();
+    let mut hop = from;
+    while hop != "COM" {
+        hop = &orbits[hop];
+        route.push(hop);
+    }
+    route
+}
+
+fn path_to_santa(orbits: &HashMap<String, String>) -> Option<usize> {
+    let youpath = path_to_com(orbits, "YOU");
+    let sanpath = path_to_com(orbits, "SAN");
+
+    for (i, x) in youpath.iter().enumerate() {
+        if sanpath.contains(x) {
+            for (j, y) in sanpath.iter().enumerate() {
+                if x == y {
+                    return Some(i + j);
+                }
+            }
+        }
+    }
+    None
+}
+
 fn parse_orbit(desc: &str) -> (String, String) {
     let mut sp = desc.split(')');
     let (parent, moon) = (sp.next().unwrap().to_string(), sp.next().unwrap().to_string());
@@ -38,4 +64,5 @@ fn main() {
         .map(|orbitdesc| parse_orbit(&orbitdesc.unwrap()))
         .collect();
     println!("{:?}", orbit_count(&orbits));
+    println!("{:?}", path_to_santa(&orbits));
 }
