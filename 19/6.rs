@@ -1,7 +1,7 @@
 use std::io::{self, BufRead};
 use std::collections::HashMap;
 
-fn search(orbits: &HashMap<String, String>, countmap: &mut HashMap<String, usize>, object: &String) -> usize {
+fn search(orbits: &HashMap<String, String>, countmap: &mut HashMap<String, usize>, object: &str) -> usize {
     // already visited?
     let count = countmap.get(object);
     if count.is_some() {
@@ -26,30 +26,35 @@ fn orbit_count(orbits: &HashMap<String, String>) -> usize {
     countmap.values().sum()
 }
 
-fn path_to_com<'a>(orbits: &'a HashMap<String, String>, from: &'a str) -> Vec<&'a str> {
-    let mut route = Vec::new();
-    let mut hop = from;
-    while hop != "COM" {
-        hop = &orbits[hop];
-        route.push(hop);
+fn common<'a>(orbits: &'a HashMap<String, String>, countmap: &'a HashMap<String, usize>,
+    mut a: &'a str, mut b: &'a str) -> &'a str {
+    // walk both up until they're level
+    while countmap[a] > countmap[b] {
+        a = &orbits[a];
     }
-    route
+    while countmap[b] > countmap[a] {
+        b = &orbits[b];
+    }
+    // the chains can be equally long but diverging at some point, so find that point
+    while a != b {
+        a = &orbits[a];
+        b = &orbits[b];
+    }
+
+    a
 }
 
 fn path_to_santa(orbits: &HashMap<String, String>) -> Option<usize> {
-    let youpath = path_to_com(orbits, "YOU");
-    let sanpath = path_to_com(orbits, "SAN");
+    let mut countmap = HashMap::new();
+    // mark the end of the recursion explicitly from the definition
+    countmap.insert("COM".to_string(), 0);
 
-    for (i, x) in youpath.iter().enumerate() {
-        if sanpath.contains(x) {
-            for (j, y) in sanpath.iter().enumerate() {
-                if x == y {
-                    return Some(i + j);
-                }
-            }
-        }
-    }
-    None
+    search(orbits, &mut countmap, "YOU");
+    search(orbits, &mut countmap, "SAN");
+    let knot = common(orbits, &countmap, "YOU", "SAN");
+
+    // YOU and SAN not counted because they're not orbited by us, they're orbiting
+    Some((countmap["YOU"] - 1 - countmap[knot]) + (countmap["SAN"] - 1 - countmap[knot]))
 }
 
 fn parse_orbit(desc: &str) -> (String, String) {
