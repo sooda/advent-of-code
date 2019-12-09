@@ -110,4 +110,5 @@ fn main() {
         .split(',').map(|n| n.parse().unwrap()).collect();
 
     println!("{:?}", execute(&program, &[1])[0]);
+    println!("{:?}", execute(&program, &[2])[0]);
 }
