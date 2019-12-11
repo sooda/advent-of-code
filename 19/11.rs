@@ -79,7 +79,7 @@ fn step<'a, 'b, I: Iterator<Item = &'b i64>>(program: &'a mut [i64], ip: usize, 
     }
 }
 
-fn execute(program: &[i64]) -> HashMap<(i32, i32), bool> {
+fn execute(program: &[i64], begin_color: bool) -> HashMap<(i32, i32), bool> {
     let mut panel = HashMap::new();
     let mut program = program.to_vec();
     // FIXME: program should probably be a hashmap, but this works for now
@@ -99,6 +99,7 @@ fn execute(program: &[i64]) -> HashMap<(i32, i32), bool> {
     // error[E0282]: type annotations needed
     let input = |panel: &HashMap<_, _>, x, y| if *panel.get(&(x, y)).unwrap_or(&false) { 1 } else { 0 };
     let mut color_mode = true;
+    panel.insert((0, 0), begin_color);
 
     // for each input there's two outs, but providing the input for each step is still fine, may
     // just not be used
@@ -136,10 +137,27 @@ fn execute(program: &[i64]) -> HashMap<(i32, i32), bool> {
     panel
 }
 
+fn dump(panel: &HashMap<(i32, i32), bool>) {
+    let minx = panel.keys().map(|&(x, _)| x).min().unwrap();
+    let maxx = panel.keys().map(|&(x, _)| x).max().unwrap();
+    let miny = panel.keys().map(|&(_, y)| y).min().unwrap();
+    let maxy = panel.keys().map(|&(_, y)| y).max().unwrap();
+    for y in miny..=maxy {
+        for x in minx..=maxx {
+            let ch = if *panel.get(&(x, y)).unwrap_or(&false) { '#' } else { '.' };
+            print!("{}", ch);
+        }
+        println!();
+    }
+}
+
 fn main() {
     let program: Vec<i64> = io::stdin().lock().lines().next().unwrap().unwrap()
         .split(',').map(|n| n.parse().unwrap()).collect();
 
-    let panel = execute(&program);
+    let panel = execute(&program, false);
     println!("{:?}", panel.len());
+
+    let panel = execute(&program, true);
+    dump(&panel);
 }
