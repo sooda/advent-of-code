@@ -128,13 +128,12 @@ fn pewpew(origin: &(i32, i32), roids: &mut Vec<(i32, i32)>, limit: usize) -> (i3
 }
 
 fn main() {
-    // can't flat_map directly because those line strings are temporary, so two collect()s :(
-    let mut roids: Vec<_> = io::stdin().lock().lines().enumerate().map(
-        |(y, line)| line.unwrap().bytes().enumerate().filter_map(
-            |(x, ch)| if ch != b'.' { Some((x as i32, y as i32)) } else { None }
-        ).collect::<Vec<_>>()
+    let mut roids: Vec<_> = io::stdin().lock().lines().enumerate().flat_map(
+        |(y, line)| line.unwrap().into_bytes().into_iter().enumerate().filter_map(
+            move |(x, ch)| if ch != b'.' { Some((x as i32, y as i32)) } else { None }
+        )
     )
-    .flat_map(|line| line.into_iter()).collect();
+    .collect();
 
     let (bestval, bestpos) = roids.iter().map(|roid| (visibility(roid, &roids), *roid)).max().unwrap();
     println!("best {} at {:?}", bestval, bestpos);
