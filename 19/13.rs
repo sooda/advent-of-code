@@ -89,7 +89,7 @@ fn step<'a, 'b, I: Iterator<Item = &'b i64>>(program: &'a mut [i64], ip: usize, 
     }
 }
 
-fn execute(program: &[i64]) -> HashMap<(i64, i64), Tile> {
+fn execute(program: &[i64], play_free: bool) -> HashMap<(i64, i64), Tile> {
     let mut panel = HashMap::new();
     let mut program = program.to_vec();
     // FIXME: program should probably be a hashmap, but this works for now
@@ -101,9 +101,16 @@ fn execute(program: &[i64]) -> HashMap<(i64, i64), Tile> {
     let mut x = 0;
     let mut y = 0;
 
+    if play_free {
+        // infinite (two, sir!) quarters
+        program[0] = 2;
+    }
+    let mut ballx = 0;
+    let mut padx = 0;
+
     let mut outmode = 0;
     while let Some((newip, newbase, newout)) =
-            step(&mut program, ip, base, &mut [].iter()) {
+            step(&mut program, ip, base, &mut [(ballx as i64 - padx as i64).signum()].iter()) {
         if newout.is_some() {
             match outmode {
                 0 => {
@@ -113,14 +120,25 @@ fn execute(program: &[i64]) -> HashMap<(i64, i64), Tile> {
                     y = newout.unwrap() as i64;
                 },
                 2 => {
-                    panel.insert((x, y), match newout.unwrap() {
-                        0 => Empty,
-                        1 => Wall,
-                        2 => Block,
-                        3 => Paddle,
-                        4 => Ball,
-                        _ => panic!("bad tile")
-                    });
+                    if x == -1 && y == 0 {
+                        println!("current score: {}", newout.unwrap());
+                    } else {
+                        panel.insert((x, y), match newout.unwrap() {
+                            0 => Empty,
+                            1 => Wall,
+                            2 => Block,
+                            3 => {
+                                padx = x;
+                                Paddle
+                            },
+                            4 => {
+                                ballx = x;
+                                Ball
+                            },
+                            _ => panic!("bad tile")
+                        });
+                        dump(&panel);
+                    }
                 },
                 _ => unreachable!()
             }
@@ -157,7 +175,9 @@ fn main() {
     let program: Vec<i64> = io::stdin().lock().lines().next().unwrap().unwrap()
         .split(',').map(|n| n.parse().unwrap()).collect();
 
-    let panel = execute(&program);
+    let panel = execute(&program, false);
     println!("{}", panel.values().filter(|&&x| x == Block).count());
     dump(&panel);
+
+    execute(&program, true);
 }
