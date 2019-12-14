@@ -51,10 +51,10 @@ fn div_roundup(a: i64, b: i64) -> i64 {
 }
 
 fn produce_fuel<'a>(chain: &'a [Reaction], have: &mut HashMap<&'a str, i64>,
-        need: &mut HashMap<&'a str, i64>) -> Option<i64> {
+        need: &mut HashMap<&'a str, i64>, fuelgap: i64) -> Option<i64> {
     let by_name = chain.iter().map(|r| (&r.output.name as &str, r)).collect::<HashMap<&str, _>>();
     let mut ore_consumed = 0;
-    need.insert("FUEL", 1);
+    need.insert("FUEL", fuelgap);
     while !need.is_empty() {
         // any cleaner way? could also keep needed keys in another list
         let (name, weight_required) = {
@@ -66,6 +66,7 @@ fn produce_fuel<'a>(chain: &'a [Reaction], have: &mut HashMap<&'a str, i64>,
             // a lot but not infinitely
             let weight_stored = have.get_mut(name).unwrap();
             if *weight_stored < weight_required {
+                // cannot make this amount of fuel; have and need metadata are now corrupted
                 return None;
             }
             *weight_stored -= weight_required;
@@ -96,7 +97,24 @@ fn ores_for_fuel(chain: &[Reaction]) -> i64 {
     let mut need: HashMap<&str, i64> = HashMap::new();
     have.insert("ORE", std::i64::MAX);
 
-    produce_fuel(chain, &mut have, &mut need).unwrap()
+    produce_fuel(chain, &mut have, &mut need, 1).unwrap()
+}
+
+fn max_fuel_produceable_linear(chain: &[Reaction], ore_limit: i64) -> i64 {
+    let mut have: HashMap<&str, i64> = HashMap::new();
+    let mut need: HashMap<&str, i64> = HashMap::new();
+    have.insert("ORE", ore_limit);
+    let mut fuel_produced = 0;
+
+    while let Some(_ored) = produce_fuel(chain, &mut have, &mut need, 1) {
+        fuel_produced += 1;
+        if fuel_produced & 0xffff == 0 {
+            // some statistics
+            println!("fuel: {} ore: {} progress: {} %",
+                fuel_produced, have["ORE"], 100 - 100 * have["ORE"] / ore_limit);
+        }
+    }
+    fuel_produced
 }
 
 fn max_fuel_produceable(chain: &[Reaction], ore_limit: i64) -> i64 {
@@ -104,13 +122,18 @@ fn max_fuel_produceable(chain: &[Reaction], ore_limit: i64) -> i64 {
     let mut need: HashMap<&str, i64> = HashMap::new();
     have.insert("ORE", ore_limit);
     let mut fuel_produced = 0;
+    let mut bucket = ore_limit; // certainly too large upper bound
 
-    while let Some(_ored) = produce_fuel(chain, &mut have, &mut need) {
-        fuel_produced += 1;
-        if fuel_produced & 0xffff == 0 {
-            // some statistics
-            println!("fuel: {} ore: {} progress: {} %",
-                fuel_produced, have["ORE"], 100 - 100 * have["ORE"] / ore_limit);
+    while bucket > 0 {
+        let mut have_next = have.clone();
+        let mut need_next = need.clone();
+        if let Some(_ored) = produce_fuel(chain, &mut have_next, &mut need_next, bucket) {
+            have = have_next;
+            need = need_next;
+            fuel_produced += bucket;
+        } else {
+            // keep original have and need buffers, try a smaller bucket
+            bucket /= 2;
         }
     }
     fuel_produced
@@ -138,4 +161,8 @@ fn main() {
 
     println!("{}", ores_for_fuel(&reaction_chain));
     println!("{}", max_fuel_produceable(&reaction_chain, 1000000000000));
+    if false {
+        println!("double check: wait ...");
+        println!("{}", max_fuel_produceable_linear(&reaction_chain, 1000000000000));
+    }
 }
