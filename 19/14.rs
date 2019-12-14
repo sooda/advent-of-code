@@ -50,13 +50,11 @@ fn div_roundup(a: i64, b: i64) -> i64 {
     (a + b - 1) / b
 }
 
-fn ores_for_fuel(chain: &[Reaction]) -> i64 {
+fn produce_fuel<'a>(chain: &'a [Reaction], have: &mut HashMap<&'a str, i64>,
+        need: &mut HashMap<&'a str, i64>) -> Option<i64> {
     let by_name = chain.iter().map(|r| (&r.output.name as &str, r)).collect::<HashMap<&str, _>>();
-    let mut have: HashMap<&str, i64> = HashMap::new();
-    let mut need: HashMap<&str, i64> = HashMap::new();
-    need.insert("FUEL", 1);
     let mut ore_consumed = 0;
-
+    need.insert("FUEL", 1);
     while !need.is_empty() {
         // any cleaner way? could also keep needed keys in another list
         let (name, weight_required) = {
@@ -65,7 +63,12 @@ fn ores_for_fuel(chain: &[Reaction]) -> i64 {
         };
 
         if name == "ORE" {
-            // this we have infinitely
+            // a lot but not infinitely
+            let weight_stored = have.get_mut(name).unwrap();
+            if *weight_stored < weight_required {
+                return None;
+            }
+            *weight_stored -= weight_required;
             ore_consumed += weight_required;
         } else {
             let weight_stored = have.entry(name).or_insert(0);
@@ -85,7 +88,32 @@ fn ores_for_fuel(chain: &[Reaction]) -> i64 {
             *weight_stored -= weight_required;
         }
     }
-    ore_consumed
+    Some(ore_consumed)
+}
+
+fn ores_for_fuel(chain: &[Reaction]) -> i64 {
+    let mut have: HashMap<&str, i64> = HashMap::new();
+    let mut need: HashMap<&str, i64> = HashMap::new();
+    have.insert("ORE", std::i64::MAX);
+
+    produce_fuel(chain, &mut have, &mut need).unwrap()
+}
+
+fn max_fuel_produceable(chain: &[Reaction], ore_limit: i64) -> i64 {
+    let mut have: HashMap<&str, i64> = HashMap::new();
+    let mut need: HashMap<&str, i64> = HashMap::new();
+    have.insert("ORE", ore_limit);
+    let mut fuel_produced = 0;
+
+    while let Some(_ored) = produce_fuel(chain, &mut have, &mut need) {
+        fuel_produced += 1;
+        if fuel_produced & 0xffff == 0 {
+            // some statistics
+            println!("fuel: {} ore: {} progress: {} %",
+                fuel_produced, have["ORE"], 100 - 100 * have["ORE"] / ore_limit);
+        }
+    }
+    fuel_produced
 }
 
 fn dump_graphviz(chain: &[Reaction]) {
@@ -109,4 +137,5 @@ fn main() {
     }
 
     println!("{}", ores_for_fuel(&reaction_chain));
+    println!("{}", max_fuel_produceable(&reaction_chain, 1000000000000));
 }
