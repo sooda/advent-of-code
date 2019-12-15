@@ -186,12 +186,12 @@ fn explore(computer: &mut Computer, grid: &mut Grid, x: i32, y: i32, current_til
     }
 }
 
-fn bfs(grid: &Grid, destination: i64) -> usize {
+fn bfs(grid: &Grid, start: (i32, i32), destination: Option<(i32, i32)>) -> HashMap<(i32, i32), usize> {
     let mut queue = VecDeque::new();
     let mut distances = HashMap::new();
 
-    queue.push_back(((0, 0), 0));
-    distances.insert((0, 0), 0);
+    queue.push_back((start, 0));
+    distances.insert(start, 0);
 
     while let Some(current) = queue.pop_front() {
         let ((xi, yi), dist) = current;
@@ -205,23 +205,23 @@ fn bfs(grid: &Grid, destination: i64) -> usize {
         for nextpos in steps {
             let unknown = !distances.contains_key(nextpos);
             let floor = *grid.get(nextpos).unwrap();
-            if floor == destination {
-                // break out of the search when found; this must be minimal in bfs with
-                // equal-weight edges
-                return dist + 1;
-            }
             let passable = floor != LOCATION_WALL;
             if unknown && passable {
                 queue.push_back((*nextpos, dist + 1));
                 distances.insert(*nextpos, dist + 1);
+                if Some(*nextpos) == destination {
+                    // break out of the search when found; this must be minimal in bfs with
+                    // equal-weight edges
+                    return distances;
+                }
             }
         }
     }
 
-    panic!("oxygen 404");
+    distances
 }
 
-fn oxygen_system_distance(program: &[i64]) -> usize {
+fn oxygen_quest(program: &[i64]) -> (usize, usize) {
     let mut prog = program.to_vec();
     prog.resize(prog.len() + 1000, 0);
     let mut computer = Computer {
@@ -229,16 +229,23 @@ fn oxygen_system_distance(program: &[i64]) -> usize {
         ip: 0,
         base: 0
     };
-    let mut grid = HashMap::new();
+
     // dfs the map using the robot, don't stop at the oxygen tile yet
+    let mut grid = HashMap::new();
     explore(&mut computer, &mut grid, 0, 0, LOCATION_OPEN);
+
     // then search the minimal distance to the goal using the full map
-    bfs(&grid, LOCATION_OXYGEN)
+    let oxy_coords = *grid.iter().find(|(_, &v)| v == LOCATION_OXYGEN).unwrap().0;
+    let oxy_distance = bfs(&grid, (0, 0), Some(oxy_coords))[&oxy_coords];
+    // and how long does it take to bring life back?
+    let flood_fill_minutes = *bfs(&grid, oxy_coords, None).values().max().unwrap();
+
+    (oxy_distance, flood_fill_minutes)
 }
 
 fn main() {
     let program: Vec<i64> = io::stdin().lock().lines().next().unwrap().unwrap()
         .split(',').map(|n| n.parse().unwrap()).collect();
 
-    println!("{}", oxygen_system_distance(&program));
+    println!("{:?}", oxygen_quest(&program));
 }
