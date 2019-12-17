@@ -8,22 +8,6 @@ fn step<'a, 'b, I: Iterator<Item = &'b i64>>(program: &'a mut [i64], ip: usize, 
         // short circuit this, the discontinuity is annoying
         return None;
     }
-    if false {
-        let desc = &[
-            "????????????????",
-            "add",
-            "mul",
-            "in",
-            "out",
-            "tnz", // "test not zero"
-            "tz",
-            "bl", // "branch less"
-            "be",
-            "base",
-        ];
-
-        println!("run ip {} op {} ({})", ip, opcode, desc[opcode as usize]);
-    }
     let mode0 = program[ip] / 100 % 10;
     let mode1 = program[ip] / 1000 % 10;
     let mode2 = program[ip] / 10000 % 10;
