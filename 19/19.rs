@@ -1,5 +1,5 @@
 use std::io::{self, BufRead};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 fn step<'a, 'b, I: Iterator<Item = &'b i64>>(program: &'a mut [i64], ip: usize, base: i64, input: &mut I) -> Option<(usize, i64, Option<i64>)> {
     let opcode = program[ip] % 100;
@@ -95,31 +95,38 @@ fn execute(computer: &mut Computer, inputs: &[i64]) -> Option<i64> {
 
 type Grid = HashMap<(i64, i64), bool>;
 
+// easy pbm format for kolourpaint
 fn dump(grid: &Grid) {
-    println!("<map>");
+    println!("P1");
     let minx = grid.keys().map(|&(x, _)| x).min().unwrap();
     let maxx = grid.keys().map(|&(x, _)| x).max().unwrap();
     let miny = grid.keys().map(|&(_, y)| y).min().unwrap();
     let maxy = grid.keys().map(|&(_, y)| y).max().unwrap();
+    println!("{} {}", maxx + 1, maxy + 1);
     for y in miny..=maxy {
         for x in minx..=maxx {
             let ch = match *grid.get(&(x, y)).unwrap() {
-                true => '#',
-                false => '.',
+                true => '1',
+                false => '0',
             };
-            print!("{}", ch);
+            print!("{} ", ch);
         }
         println!();
     }
-    println!("</map>");
 }
 
-fn scan(computer: &Computer, grid: &mut Grid, x0: i64, y0: i64, x1: i64, y1: i64) {
+fn beam_at(computer: &Computer, x: i64, y: i64) -> bool {
+    execute(&mut computer.clone(), &[x, y]).unwrap() == 1
+}
+
+fn scan(computer: &Computer, x0: i64, y0: i64, x1: i64, y1: i64) -> Grid {
+    let mut grid = HashMap::new();
     for y in y0..=y1 {
         for x in x0..=x1 {
-            grid.insert((x, y), execute(&mut computer.clone(), &[x, y]).unwrap() == 1);
+            grid.insert((x, y), beam_at(computer, x, y));
         }
     }
+    grid
 }
 
 fn analyze_beam(program: &[i64]) -> usize {
@@ -131,15 +138,55 @@ fn analyze_beam(program: &[i64]) -> usize {
         base: 0
     };
 
-    let mut grid = HashMap::new();
-    scan(&computer, &mut grid, 0, 0, 49, 49);
+    let grid = scan(&computer, 0, 0, 49, 49);
     dump(&grid);
     grid.values().filter(|&&v| v).count()
+}
+
+fn search_square(computer: &Computer, sq_size: usize) -> (i64, i64) {
+    let mut que = VecDeque::new();
+    // the beam doesn't quite start at origin so start the search later
+    let starty = 10;
+    let mut minx = (0..).find(|&x| beam_at(computer, x, starty)).unwrap();
+    let mut maxx = (minx + 1..).find(|&x| !beam_at(computer, x, starty)).unwrap();
+    for y in starty.. {
+        let newmin = (minx..).find(|&x| beam_at(computer, x, y)).unwrap();
+
+        // primed enough? start counting
+        if que.len() == sq_size - 1 {
+            let bottom_left = newmin; // top left is inside the beam, same x though
+            let top_right = que.pop_front().unwrap();
+            let fitting_box_width = top_right - bottom_left + 1;
+            if fitting_box_width == 100 {
+                return (bottom_left, y - 99);
+            }
+        }
+
+        let newmax = (maxx..).find(|&x| !beam_at(computer, x, y)).unwrap() - 1;
+        que.push_back(newmax);
+        minx = newmin;
+        maxx = newmax;
+    }
+    unreachable!()
+}
+
+fn santa_square_position(program: &[i64]) -> i64 {
+    let mut prog = program.to_vec();
+    prog.resize(prog.len() + 1000, 0);
+    let computer = Computer {
+        program: prog,
+        ip: 0,
+        base: 0
+    };
+
+    let pos = search_square(&computer, 100);
+    pos.0 * 10000 + pos.1
 }
 
 fn main() {
     let program: Vec<i64> = io::stdin().lock().lines().next().unwrap().unwrap()
         .split(',').map(|n| n.parse().unwrap()).collect();
 
-    println!("{:?}", analyze_beam(&program));
+    println!("# {:?}", analyze_beam(&program));
+    println!("# {:?}", santa_square_position(&program));
 }
