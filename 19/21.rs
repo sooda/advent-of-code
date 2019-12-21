@@ -134,6 +134,102 @@ NOT A J
            NOT C T
                     AND D T
         OR T J
+
+rules, second part: nine steps lookahead when running. Let's see where the first part's rules would
+fail because the hull somehow looks different when running:
+
+..@...v.......... ##.# land site found, make a jump over the hole
+#####.##.##..####
+   abcd
+       efghi
+
+......@.......... #.## no need to jump yet
+#####.##.##..####
+       abcd
+           efghi
+
+...... @...v..... .##. but now can't walk, can't jump. should have jumped already
+#####.##.##..####
+        abcd
+            efghi
+
+so jump also if !B & D?
+!A | (!C & D) | (!B & D)
+NOT A J
+
+NOT C T
+AND D T
+
+OR T J
+
+NOT B T
+AND D T
+
+OR T J
+
+however this breaks if the jump should not yet be taken because the closer landing site would mean
+certain droid death and there would be a later landing site:
+
+..@...v.......... ##.# looks like should jump
+#####.#.#...#####
+   abcd
+       efghi
+
+......@.......... .#.. but now there's nowhere to land, cannot jump
+#####.#@#.@.#####
+       abcd
+           efghi
+
+....@...v........ .#.# this is where should jump from
+#####.#.#...#####
+     abcd
+         efghi
+
+original coord again: jump if
+- there's a hole ahead
+- and a landing site
+- unless hole after the landing site
+..@...v..........
+#####.#.#...##### ##.# .#..
+   abcd
+       efghi
+
+BUT sometimes the later landing site is unfavorable:
+..@...v...v...v..
+#####.#.#.#...###
+   abcd
+       efghi
+
+First, simplify the original condition
+!A | (!C & D) | (!B & D) = !A | ((!B | !C) & D) = !A | (!(B & C) & D)
+!A on its own is ok, but it can be combined with & D - if there's nothing in front, there must be a
+landing site for the droid to live, or else we'd just choose between two ways to lose the game
+!A | (!(B & C) & D) ~ (!A & D) | (!(B & C) & D) = !(A & B & C) & D
+
+NOT A J
+NOT J J
+AND B J
+AND C J
+NOT J J
+AND D J
+
+So the original condition transforms to: If there's a hole somewhere ahead and the jump destination
+D is land, do the jump. This should work for walking as well.
+
+Add the exception for the other landing site inversely; the later landing site is preceded by an
+empty space (at E) and also the cascaded jump destination would be at H.
+
+..@..............
+#####.#..######## ##.# ..##
+   abcd
+       efghi
+
+origrules [at J] & (E | H)
+NOT E T
+NOT T T
+OR H T
+
+AND T J
 */
 fn research_hull_damage(program: &[i64]) -> i64 {
     let mut prog = program.to_vec();
@@ -143,12 +239,47 @@ fn research_hull_damage(program: &[i64]) -> i64 {
         ip: 0,
         base: 0
     };
-    let script = "NOT A J\n\
+    // no floor in front or a jump land site on D
+    // !A | (!C & D)
+    let _script = "NOT A J\n\
                  NOT C T\n\
                  AND D T\n\
                  OR T J\n\
                  WALK\n";
+    // gap somewhere ahead and jump land site on D
+    // !(A & B & C) & D
+    let script = "NOT A J\n\
+                  NOT J J\n\
+                  AND B J\n\
+                  AND C J\n\
+                  NOT J J\n\
+                  AND D J\n\
+                  WALK\n";
+
     execute_springscript(&mut computer, script).unwrap_or(0)
+}
+
+fn extended_sensor_mode(program: &[i64]) -> i64 {
+    let mut prog = program.to_vec();
+    prog.resize(prog.len() + prog.len(), 0);
+    let mut computer = Computer {
+        program: prog,
+        ip: 0,
+        base: 0
+    };
+    let if_nabc_d = "NOT A J\n\
+                  NOT J J\n\
+                  AND B J\n\
+                  AND C J\n\
+                  NOT J J\n\
+                  AND D J\n";
+    let if_also_eh = "NOT E T\n\
+                      NOT T T\n\
+                      OR H T\n\
+                      AND T J\n";
+    let go = "RUN\n";
+    let script = if_nabc_d.to_string() + if_also_eh + go;
+    execute_springscript(&mut computer, &script).unwrap_or(0)
 }
 
 fn main() {
@@ -156,4 +287,5 @@ fn main() {
         .split(',').map(|n| n.parse().unwrap()).collect();
 
     println!("{}", research_hull_damage(&program));
+    println!("{}", extended_sensor_mode(&program));
 }
