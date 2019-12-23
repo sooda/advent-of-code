@@ -145,7 +145,7 @@ fn bfs_places(map: &Map, origin: Vec2) -> DistanceMap {
     // the found distances include also every floor tile and the source; only the points of
     // interest are useful. Convert also coordinates into tile labels because they're now unique
     let interesting = distances.into_iter()
-        .filter(|((x, y), (dist, _keys, _doors))| map[*y][*x] != '.' && *dist != 0)
+        .filter(|((x, y), (dist, _keys, _doors))| is_key(map[*y][*x]))
         .map(|((x, y), distinfo)| (map[y][x], distinfo)).collect();
     // (this prints player origin as '.')
     println!("from {}: {:?}", map[origin.1][origin.0], interesting);
@@ -156,7 +156,7 @@ fn bfs_places(map: &Map, origin: Vec2) -> DistanceMap {
 // but we're interested in what keys we have collected - not which doors we've passed
 type GdistMap = HashMap<char, (usize, Keys)>;
 
-// try abstract paths like abcABC, aAbBcC, find shortest path that owns all keys
+// try abstract paths like abcd, adbc, dcba, find shortest path that visits all keys
 fn graph_dfs(dl: &DistanceList, origin: char) -> usize {
     // dist negated so that bigger would be better; we want the shortest
     let mut heap: BinaryHeap<(i64, char, Keys)> = BinaryHeap::new(); // -dist, ch, equip
@@ -211,17 +211,30 @@ fn graph_dfs(dl: &DistanceList, origin: char) -> usize {
     distances.insert(origin, (0, Keys::new()));
     heap.push((0, origin, Keys::new()));
 
+    let all_keys = dl.keys() // note: keys are not quite like keys
+        .filter(|&&k| is_key(k))
+        .fold(Keys::new(), |mut keychain, &x| { keychain.insert(x); keychain });
+
     while let Some(current) = heap.pop() {
+        if false {
+            // note: this shortcut doesn't seem useful
+            if distances.iter().all(|(&place, &(dist, keys))| keys == all_keys) {
+                break;
+            }
+        }
+
         let (dist_i, ch_i, keys_i) = current;
         let dist_i = (-dist_i) as usize;
         //println!("visit dist {:?} ch {:?} keys {:?} | distmap size is {}", dist_i, ch_i, keys_i, distances.len());
         //println!("  distances are {:?}", distances);
-        // no doors, we are here already; keys do not change either
-        if !test_and_insert(ch_i, Doors::new(), keys_i, keys_i, dist_i, &mut distances, &mut heap, false) {
-            //println!("  too expensive");
-            //println!("  new {:?}", (dist_i, keys_i));
-            //println!("  old {:?}", distances.get(&ch_i).unwrap());
-            continue;
+        if false {
+            // this doesn't seem to speed up much either
+            if !test_and_insert(ch_i, Doors::new(), keys_i, keys_i, dist_i, &mut distances, &mut heap, false) {
+                //println!("  too expensive");
+                //println!("  new {:?}", (dist_i, keys_i));
+                //println!("  old {:?}", distances.get(&ch_i).unwrap());
+                continue;
+            }
         }
         //println!("  neighs are {:?}", dl.get(&ch_i).unwrap());
 
@@ -240,10 +253,6 @@ fn graph_dfs(dl: &DistanceList, origin: char) -> usize {
     }
     println!("{:?}", distances);
 
-    let all_keys = dl.keys() // note: keys are not quite like keys
-        .filter(|&&k| is_key(k))
-        .fold(Keys::new(), |mut keychain, &x| { keychain.insert(x); keychain });
-
     distances.values()
         .filter(|&&(_dist, keys)| keys == all_keys)
         .map(|&(dist, _keys)| dist).min().unwrap()
@@ -254,7 +263,7 @@ fn shortest_keypath(world: World) -> usize {
     let mut sightseeing: Vec<(Vec2, char)> = world.map.iter().enumerate()
         .flat_map(|(y, row)| {
             row.iter().enumerate()
-                .filter(|&(_x, &ch)| ch != '.' && ch != '#')
+                .filter(|&(_x, &ch)| is_key(ch))
                 .map(move |(x, &ch)| ((x, y), ch))
         }).collect();
     sightseeing.push(((world.player_x, world.player_y), '@'));
@@ -268,7 +277,6 @@ fn shortest_keypath(world: World) -> usize {
         (ch, bfs_places(&world.map, (x, y)))
     }).collect();
 
-    // try abstract paths like abcABC, aAbBcC, find shortest path that owns all keys
     graph_dfs(&dl, '@')
 }
 
