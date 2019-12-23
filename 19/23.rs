@@ -2,7 +2,7 @@ use std::io::{self, BufRead};
 use std::collections::VecDeque;
 
 const NIC_COUNT: usize = 50;
-const ANSWER_ADDRESS: i64 = 255;
+const NAT_ADDRESS: i64 = 255;
 
 #[derive(PartialEq, Eq)]
 enum StepState {
@@ -134,32 +134,33 @@ fn drive_o(computer: &mut Computer) -> i64 {
 type Address = i64;
 type Packet = (i64, i64);
 
-fn receive_packet(nic: &mut Computer, address: Address, queues: &mut [VecDeque<Packet>]) -> Option<i64> {
+fn receive_packet(nic: &mut Computer, address: Address, queues: &mut [VecDeque<Packet>]) -> Option<Packet> {
     let x = drive_o(nic);
     let y = drive_o(nic);
-    if address == ANSWER_ADDRESS {
-        Some(y)
+    if address == NAT_ADDRESS {
+        Some((x, y))
     } else {
         queues[address as usize].push_back((x, y));
         None
     }
 }
 
-fn transmit_value(nic: &mut Computer, value: i64, _queues: &mut [VecDeque<Packet>]) {
+fn transmit_value(nic: &mut Computer, value: i64, queues: &mut [VecDeque<Packet>]) -> Option<Packet> {
+    let mut out = None;
     loop {
-        match drive_io(nic, &mut ([value]).into_iter().cloned()) {
+        match drive_io(nic, &mut [value].into_iter().cloned()) {
             Step => {
                 // continue
             },
             Input => {
                 // boarding completed
-                return;
+                return out;
             },
-            Output(_address) => {
-                // this would be the start of a packet leaving this nic in between parsing an
-                // incoming packet to it. can this happen here? the spec is ambiguous.
-                panic!();
-                //receive_packet(nic, address, queues);
+            Output(address) => {
+                // okay but how about entirely interleaved transmit and receive?
+                // can receive_packet go to transmit mode in between?
+                // apparently not
+                out = receive_packet(nic, address, queues).or(out);
             },
             Stop => {
                 panic!("stopped while transmitting");
@@ -169,24 +170,33 @@ fn transmit_value(nic: &mut Computer, value: i64, _queues: &mut [VecDeque<Packet
 }
 
 // transmit a packet *to* this NIC
-fn transmit_packet(nic: &mut Computer, packet: Packet, queues: &mut [VecDeque<Packet>]) {
-    transmit_value(nic, packet.0, queues);
-    transmit_value(nic, packet.1, queues);
+fn transmit_packet(nic: &mut Computer, packet: Packet, queues: &mut [VecDeque<Packet>]) -> Option<Packet> {
+    let a = transmit_value(nic, packet.0, queues);
+    let b = transmit_value(nic, packet.1, queues);
+    b.or(a)
 }
 
+#[derive(PartialEq)]
+enum ListenState {
+    Working,
+    Idle,
+    Received
+}
+use ListenState::*;
+
 // listen for a packet *from* this NIC
-fn listen_packet(nic: &mut Computer, queues: &mut [VecDeque<Packet>]) -> Option<i64> {
+fn listen_packet(nic: &mut Computer, queues: &mut [VecDeque<Packet>]) -> (ListenState, Option<Packet>) {
     match drive_io(nic, &mut [-1].into_iter().cycle().cloned()) {
         Step => {
             // continue
-            None
+            (Working, None)
         },
         Input => {
             // continue, consumed -1
-            None
+            (Idle, None)
         },
         Output(address) => {
-            receive_packet(nic, address, queues)
+            (Received, receive_packet(nic, address, queues))
         },
         Stop => {
             panic!("stopped, not sure what to do");
@@ -194,24 +204,42 @@ fn listen_packet(nic: &mut Computer, queues: &mut [VecDeque<Packet>]) -> Option<
     }
 }
 
-fn run_one(nics: &mut [Computer], queues: &mut [VecDeque<Packet>]) -> Option<i64> {
+fn run_one(nics: &mut [Computer], queues: &mut [VecDeque<Packet>],
+        idleflags: &mut [usize]) -> Option<Packet> {
     // can't zip() because the push_back below would cause another borrow
+    let mut nat = None;
     for (i, nic) in nics.iter_mut().enumerate() {
         if let Some(packet) = queues[i].pop_front() {
-            transmit_packet(nic, packet, queues);
+            let nat_next = transmit_packet(nic, packet, queues);
+            nat = nat_next.or(nat);
+            idleflags[i] = 0;
         } else {
-            if let Some(stopdata) = listen_packet(nic, queues) {
-                return Some(stopdata);
-            }
+            let (state, nat_next) = listen_packet(nic, queues);
+            nat = nat_next.or(nat);
+            match state {
+                Idle => idleflags[i] += 1,
+                Working => {}, // maybe doing some computation between idle inputs
+                Received => idleflags[i] = 0,
+            };
         }
     }
-    None
+    return nat;
 }
 
-fn run(nics: &mut [Computer], queues: &mut [VecDeque<Packet>]) -> i64 {
+fn run_until_nat(nics: &mut [Computer], queues: &mut [VecDeque<Packet>],
+        idleflags: &mut [usize], nat: Option<Packet>) -> (Packet, Option<Packet>) {
     loop {
-        if let Some(out) = run_one(nics, queues) {
-            return out;
+        if let Some(natnext) = run_one(nics, queues, idleflags) {
+            // nat changed! won't wakeup here because something was active
+            return (natnext, None);
+        }
+        if queues.iter().all(|q| q.is_empty()) && idleflags.iter().all(|&flag| flag >= 2) {
+            let delivery = nat.unwrap(); // this must exist now according to the game rules
+            // technically it's possible that the waking up nic sends to nat again but that doesn't
+            // seem to happen
+            idleflags[0] = 0;
+            let natnext = transmit_packet(&mut nics[0], delivery, queues);
+            return (natnext.or(nat).unwrap(), Some(delivery));
         }
     }
 }
@@ -234,12 +262,46 @@ fn first_packet_to_255(program: &[i64]) -> i64 {
         queues.push(VecDeque::new());
     }
 
-    run(&mut nics, &mut queues)
+    let mut idleflags = nics.iter().map(|_| 0).collect::<Vec<_>>();
+
+    (run_until_nat(&mut nics, &mut queues, &mut idleflags, None).0).1
+}
+
+fn nat_delivers_twice(program: &[i64]) -> i64 {
+    let mut prog = program.to_vec();
+    prog.resize(prog.len() + prog.len(), 0);
+
+    let mut nics = Vec::new();
+    let mut queues = Vec::new();
+    for i in 0..NIC_COUNT {
+        let mut nic = Computer {
+            program: prog.clone(),
+            ip: 0,
+            base: 0
+        };
+        drive_i(&mut nic, i as i64);
+        nics.push(nic);
+
+        queues.push(VecDeque::new());
+    }
+
+    let mut idleflags = nics.iter().map(|_| 0).collect::<Vec<_>>();
+
+    let (mut natprev, mut sentprev) = run_until_nat(&mut nics, &mut queues, &mut idleflags, None);
+    loop {
+        let (nat, sent) = run_until_nat(&mut nics, &mut queues, &mut idleflags, Some(natprev));
+        if sent == sentprev && sent.is_some() {
+            return sent.unwrap().1;
+        }
+        natprev = nat;
+        sentprev = sent.or(sentprev);
+    }
 }
 
 fn main() {
     let program: Vec<i64> = io::stdin().lock().lines().next().unwrap().unwrap()
         .split(',').map(|n| n.parse().unwrap()).collect();
 
-    println!("{}", first_packet_to_255(&program));
+    println!("first: {}", first_packet_to_255(&program));
+    println!("twice: {}", nat_delivers_twice(&program));
 }
