@@ -179,7 +179,7 @@ type GdistMap = HashMap<char, (usize, Keys)>;
 // try abstract paths like abcd, adbc, dcba, find shortest path that visits all keys
 fn dijkstra(dl: &DistanceList, origin: char) -> usize {
     // dist negated so that bigger would be better; we want the shortest
-    let mut heap: BinaryHeap<(i64, Keys, char)> = BinaryHeap::new(); // -dist, equip, node label
+    let mut heap: BinaryHeap<(Keys, i64, char)> = BinaryHeap::new(); // equip, -dist, node label
     let mut distances: GdistMap = dl.iter()
         .map(|(&ch, _dist)| {
             let k = if is_key(ch) { Keys::from_label(ch) } else { Keys::new() };
@@ -209,7 +209,7 @@ fn dijkstra(dl: &DistanceList, origin: char) -> usize {
             //println!("  look YES for {} some {} steps away from origin", ch_j, dist_j);
             //println!("  old keys {:?} dist {}", old_keys, old_dist);
             //println!("  new keys {:?} dist {}", keys_j, dist_j);
-            heap.push((-(dist_j as i64), keys_j, ch_j));
+            heap.push((keys_j, -(dist_j as i64), ch_j));
             distances.insert(ch_j, (dist_j, keys_j));
             true
         } else if !should_visit {
@@ -229,7 +229,7 @@ fn dijkstra(dl: &DistanceList, origin: char) -> usize {
     };
 
     distances.insert(origin, (0, Keys::new()));
-    heap.push((0, Keys::new(), origin));
+    heap.push((Keys::new(), 0, origin));
 
     let all_keys = dl.keys() // note: keys are not quite like keys
         .filter(|&&k| is_key(k))
@@ -243,7 +243,7 @@ fn dijkstra(dl: &DistanceList, origin: char) -> usize {
             }
         }
 
-        let (dist_i, keys_i, ch_i) = current;
+        let (keys_i, dist_i, ch_i) = current;
         let dist_i = (-dist_i) as usize;
         //println!("visit dist {:?} ch {:?} keys {:?} | distmap size is {}", dist_i, ch_i, keys_i, distances.len());
         //println!("  distances are {:?}", distances);
