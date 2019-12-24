@@ -145,7 +145,7 @@ fn bfs_places(map: &Map, origin: Vec2) -> DistanceMap {
     // the found distances include also every floor tile and the source; only the points of
     // interest are useful. Convert also coordinates into tile labels because they're now unique
     let interesting = distances.into_iter()
-        .filter(|((x, y), (dist, _keys, _doors))| is_key(map[*y][*x]))
+        .filter(|((x, y), _distinfo)| is_key(map[*y][*x]))
         .map(|((x, y), distinfo)| (map[y][x], distinfo)).collect();
     // (this prints player origin as '.')
     println!("from {}: {:?}", map[origin.1][origin.0], interesting);
@@ -157,7 +157,7 @@ fn bfs_places(map: &Map, origin: Vec2) -> DistanceMap {
 type GdistMap = HashMap<char, (usize, Keys)>;
 
 // try abstract paths like abcd, adbc, dcba, find shortest path that visits all keys
-fn graph_dfs(dl: &DistanceList, origin: char) -> usize {
+fn dijkstra(dl: &DistanceList, origin: char) -> usize {
     // dist negated so that bigger would be better; we want the shortest
     let mut heap: BinaryHeap<(i64, char, Keys)> = BinaryHeap::new(); // -dist, ch, equip
     let mut distances: GdistMap = dl.iter()
@@ -218,7 +218,7 @@ fn graph_dfs(dl: &DistanceList, origin: char) -> usize {
     while let Some(current) = heap.pop() {
         if false {
             // note: this shortcut doesn't seem useful
-            if distances.iter().all(|(&place, &(dist, keys))| keys == all_keys) {
+            if distances.iter().all(|(&_place, &(_dist, keys))| keys == all_keys) {
                 break;
             }
         }
@@ -284,7 +284,7 @@ fn shortest_keypath(world: World) -> usize {
         (ch, bfs_places(&world.map, (x, y)))
     }).collect();
 
-    graph_dfs(&dl, '@')
+    dijkstra(&dl, '@')
 }
 
 fn parse_world(mut map: Vec<Vec<char>>) -> World {
