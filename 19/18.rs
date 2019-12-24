@@ -248,6 +248,13 @@ fn graph_dfs(dl: &DistanceList, origin: char) -> usize {
             // - collect all keys on the way though; just don't consider them for doors of this dest
             keys_j.insert_all(keys_ij);
 
+            if !Keys::from_label(ch_j).contains_all(keys_ij) {
+                // actually, don't shortcut; this is missing the distance map update for the
+                // on-the-way nodes, so they'll get traversed anyway and the large number of
+                // shortcuts taken is too expensive.
+                continue;
+            }
+
             test_and_insert(ch_j, doors_j, keys_i, keys_j, dist_j, &mut distances, &mut heap, true);
         }
     }
