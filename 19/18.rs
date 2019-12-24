@@ -1,5 +1,6 @@
 use std::io::{self, BufRead};
 use std::collections::{HashMap, VecDeque, BinaryHeap};
+use std::cmp::Ordering;
 
 type Map = Vec<Vec<char>>;
 
@@ -40,7 +41,7 @@ fn key_for_door(doortile: char) -> char {
 // search state includes which keys the player holds; the alphabet fits in 32 bits, so store them
 // in a bitmap instead of some collection that would need allocation or a largeish store (also a
 // fun rust exercise)
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 struct Keys(u32);
 
 impl Keys {
@@ -63,6 +64,25 @@ impl Keys {
     }
     fn contains(&self, label: char) -> bool {
         self.contains_all(Keys::from_label(label))
+    }
+}
+
+impl Ord for Keys {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let self_dimension = self.0.count_ones();
+        let other_dimension = other.0.count_ones();
+
+        // reversed, smaller better: avoid collecting long bad paths
+        let length_cmp = other_dimension.cmp(&self_dimension);
+
+        // keep the comparison consistent with equal length but different keychains
+        length_cmp.then(self.0.cmp(&other.0))
+    }
+}
+
+impl PartialOrd for Keys {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -159,7 +179,7 @@ type GdistMap = HashMap<char, (usize, Keys)>;
 // try abstract paths like abcd, adbc, dcba, find shortest path that visits all keys
 fn dijkstra(dl: &DistanceList, origin: char) -> usize {
     // dist negated so that bigger would be better; we want the shortest
-    let mut heap: BinaryHeap<(i64, char, Keys)> = BinaryHeap::new(); // -dist, ch, equip
+    let mut heap: BinaryHeap<(i64, Keys, char)> = BinaryHeap::new(); // -dist, equip, node label
     let mut distances: GdistMap = dl.iter()
         .map(|(&ch, _dist)| {
             let k = if is_key(ch) { Keys::from_label(ch) } else { Keys::new() };
@@ -189,7 +209,7 @@ fn dijkstra(dl: &DistanceList, origin: char) -> usize {
             //println!("  look YES for {} some {} steps away from origin", ch_j, dist_j);
             //println!("  old keys {:?} dist {}", old_keys, old_dist);
             //println!("  new keys {:?} dist {}", keys_j, dist_j);
-            heap.push((-(dist_j as i64), ch_j, keys_j));
+            heap.push((-(dist_j as i64), keys_j, ch_j));
             distances.insert(ch_j, (dist_j, keys_j));
             true
         } else if !should_visit {
@@ -209,7 +229,7 @@ fn dijkstra(dl: &DistanceList, origin: char) -> usize {
     };
 
     distances.insert(origin, (0, Keys::new()));
-    heap.push((0, origin, Keys::new()));
+    heap.push((0, Keys::new(), origin));
 
     let all_keys = dl.keys() // note: keys are not quite like keys
         .filter(|&&k| is_key(k))
@@ -223,7 +243,7 @@ fn dijkstra(dl: &DistanceList, origin: char) -> usize {
             }
         }
 
-        let (dist_i, ch_i, keys_i) = current;
+        let (dist_i, keys_i, ch_i) = current;
         let dist_i = (-dist_i) as usize;
         //println!("visit dist {:?} ch {:?} keys {:?} | distmap size is {}", dist_i, ch_i, keys_i, distances.len());
         //println!("  distances are {:?}", distances);
