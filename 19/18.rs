@@ -278,7 +278,100 @@ fn dijkstra(dl: &DistanceList, origin: char) -> usize {
             test_and_insert(ch_j, doors_j, keys_i, keys_j, dist_j, &mut distances, &mut heap, true);
         }
     }
-    println!("{:?}", distances);
+
+    distances.values()
+        .filter(|&&(_dist, keys)| keys == all_keys)
+        .map(|&(dist, _keys)| dist).min().unwrap()
+}
+
+
+type Labels = [char; 4];
+type GdistMap2 = HashMap<Labels, (usize, Keys)>;
+
+// dist combined for interleaving bot movements
+fn dijkstra2(dl: &DistanceList, origin: Labels) -> usize {
+    // dist negated so that bigger would be better; we want the shortest
+    // TODO: sort by keys too, not char
+    let mut heap: BinaryHeap<(Keys, i64, Labels)> = BinaryHeap::new(); // equip, -dist, ch
+    let mut distances: GdistMap2 = GdistMap2::new();
+
+    let test_and_insert = |chs_j: Labels, doors_j: Doors,
+            keys_i: Keys, keys_j: Keys, dist_j: usize,
+            distances: &mut GdistMap2, heap: &mut BinaryHeap<_>, insertmode: bool| {
+        let &(old_dist, old_keys) = distances.get(&chs_j).unwrap_or(&(std::usize::MAX, Keys::new()));
+        // we're going to have keys_j, does it have something new compared to old_keys?
+        // it's ok if old has more than new but old must not be missing any of new
+        let new_keys_exist = !old_keys.contains_all(keys_j);
+        let should_visit = dist_j < old_dist || new_keys_exist;
+        // is this edge valid from this state? that is, do we carry the key from the start?
+        let proper_eq = keys_i.contains_all(doors_j.keys);
+
+        // this doesn't seem to be very useful
+        if !insertmode {
+            // optimization short-circuit mode - visit equal?
+            let should_visit = dist_j <= old_dist || new_keys_exist;
+            should_visit
+        } else if should_visit && proper_eq {
+            //println!("  look YES for {} some {} steps away from origin", ch_j, dist_j);
+            //println!("  old keys {:?} dist {}", old_keys, old_dist);
+            //println!("  new keys {:?} dist {}", keys_j, dist_j);
+            heap.push((keys_j, -(dist_j as i64), chs_j));
+            distances.insert(chs_j, (dist_j, keys_j));
+            true
+        } else if !should_visit {
+            //println!("  look NO1 for {} some {} steps away from origin | no better", ch_j, dist_j);
+            //println!("  old keys {:?} dist {}", old_keys, old_dist);
+            //println!("  new keys {:?} dist {}", keys_j, dist_j);
+            false
+        } else if !proper_eq {
+            //println!("  look NO2 for {} some {} steps away from origin | no equipment", ch_j,
+            //dist_j);
+            //println!("  {:?}", doors_j);
+            //println!("  {:?}", keys_j);
+            false
+        } else {
+            panic!("logic error");
+        }
+    };
+
+    distances.insert(origin, (0, Keys::new()));
+    heap.push((Keys::new(), 0, origin));
+
+    let all_keys = dl.keys() // note: keys are not quite like keys
+        .filter(|&&k| is_key(k))
+        .fold(Keys::new(), |mut keychain, &x| { keychain.insert(x); keychain });
+
+    while let Some(current) = heap.pop() {
+        let (keys_i, dist_i, chs_i) = current;
+        let dist_i = (-dist_i) as usize;
+        //println!("visit dist {:?} ch {:?} keys {:?} | distmap size is {}", dist_i, ch_i, keys_i, distances.len());
+        //println!("  distances are {:?}", distances);
+        //println!("  neighs are {:?}", dl.get(&ch_i).unwrap());
+
+        // dl has *all* things, not just reachable - reachability is checked separately
+        for (botidx, ch_i) in chs_i.iter().enumerate() {
+            for (&ch_j, &(dist_ij, keys_ij, doors_j)) in &dl[&ch_i] {
+                let dist_j = dist_i + dist_ij;
+                let mut keys_j = keys_i;
+                // about keys:
+                // - the way to these neighbors might walk over other keys or through doors
+                // - to avoid order checking, go through doors only if initial key set contains them
+                // - collect all keys on the way though; just don't consider them for doors of this dest
+                keys_j.insert_all(keys_ij);
+
+                if !Keys::from_label(ch_j).contains_all(keys_ij) {
+                    // actually, don't shortcut; this is missing the distance map update for the
+                    // on-the-way nodes, so they'll get traversed anyway and the large number of
+                    // shortcuts taken is too expensive.
+                    continue;
+                }
+
+                let mut chs_j = chs_i;
+                chs_j[botidx] = ch_j;
+                test_and_insert(chs_j, doors_j, keys_i, keys_j, dist_j, &mut distances, &mut heap, true);
+            }
+        }
+    }
 
     distances.values()
         .filter(|&&(_dist, keys)| keys == all_keys)
@@ -295,16 +388,37 @@ fn shortest_keypath(world: World) -> usize {
         }).collect();
     sightseeing.push(((world.player_x, world.player_y), '@'));
 
-    // le debug
-    let placenames: Vec<char> = sightseeing.iter().map(|&(_pos, ch)| ch).collect();
-    println!("found {:?}", placenames);
-
     // map of everything, not just direct neighbors
     let dl: DistanceList = sightseeing.iter().map(|&((x, y), ch)| {
         (ch, bfs_places(&world.map, (x, y)))
     }).collect();
 
     dijkstra(&dl, '@')
+}
+
+fn shortest_keypath_divided(mut world: World) -> usize {
+    world.map[world.player_y][world.player_x - 1] = '#';
+    world.map[world.player_y][world.player_x + 1] = '#';
+    world.map[world.player_y - 1][world.player_x] = '#';
+    world.map[world.player_y + 1][world.player_x] = '#';
+    // (pos, label) of all non-wall, non-empty
+    let mut sightseeing: Vec<(Vec2, char)> = world.map.iter().enumerate()
+        .flat_map(|(y, row)| {
+            row.iter().enumerate()
+                .filter(|&(_x, &ch)| is_key(ch))
+                .map(move |(x, &ch)| ((x, y), ch))
+        }).collect();
+    sightseeing.push(((world.player_x - 1, world.player_y - 1), '0'));
+    sightseeing.push(((world.player_x + 1, world.player_y - 1), '1'));
+    sightseeing.push(((world.player_x + 1, world.player_y + 1), '2'));
+    sightseeing.push(((world.player_x - 1, world.player_y + 1), '3'));
+
+    // map of everything, not just direct neighbors
+    let dl: DistanceList = sightseeing.iter().map(|&((x, y), ch)| {
+        (ch, bfs_places(&world.map, (x, y)))
+    }).collect();
+
+    dijkstra2(&dl, ['0', '1', '2', '3'])
 }
 
 fn parse_world(mut map: Vec<Vec<char>>) -> World {
@@ -324,5 +438,6 @@ fn main() {
         line.unwrap().chars().collect()).collect();
     let world = parse_world(input);
     dump(&world);
-    println!("{}", shortest_keypath(world));
+    println!("{}", shortest_keypath(world.clone()));
+    println!("{}", shortest_keypath_divided(world));
 }
