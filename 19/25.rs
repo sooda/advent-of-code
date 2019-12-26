@@ -1,5 +1,5 @@
 use std::io::{self, BufRead};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashSet, HashMap, VecDeque};
 use std::collections::hash_map::Entry;
 
 
@@ -80,74 +80,28 @@ struct Computer {
     program: Vec<i64>,
     ip: usize,
     base: i64,
+    iodebug: bool,
 }
 
 fn execute_dungeon(computer: &mut Computer, inputs: &str) -> Option<char> {
     let mut input = inputs.bytes().map(|b| b as i64);
-    //let mut input = inputs.bytes().map(|b| b as i64).chain([b'\n' as i64].into_iter().cloned());
     while let Some((newip, newbase, newout)) =
             step(&mut computer.program, computer.ip, computer.base, &mut input) {
         computer.ip = newip;
         computer.base = newbase;
         if let Some(out) = newout {
-            if out <= 127 {
-                return Some(out as u8 as char);
-            } else {
-                panic!();
-            }
+            assert!(out <= 127);
+            return Some(out as u8 as char);
         }
     }
     None
 }
 
-/*
-fn airlock_password(program: &[i64]) -> String {
-    let mut prog = program.to_vec();
-    prog.resize(prog.len() + prog.len(), 0);
-    let mut computer = Computer {
-        program: prog,
-        ip: 0,
-        base: 0
-    };
-
-    let steps = &[
-        "", // sentinel
-        "west",
-        "north",
-        "north",
-        "west",
-        "north",
-    ];
-
-    let mut n = 0;
-    let mut current_row = vec![];
-    while let Some(ch) = execute_dungeon(&mut computer, &steps[n]) {
-        print!("{}", ch);
-        if ch == '\n' {
-            current_row.clear();
-        } else {
-            current_row.push(ch);
-        }
-        if current_row.iter().collect::<String>() == "Command?" {
-            n += 1;
-            println!(" [ Step {}: {} ]", n, steps[n]);
-        }
-    }
-    "".to_string()
-}
-*/
-
-const TRACE_ASCII: bool = true;
-
-// TODO: iterator or something
-fn read_line(computer: &mut Computer) -> String {
-    read_line2(computer, "")
-}
-fn read_line2(computer: &mut Computer, input: &str) -> String {
+fn game_io(computer: &mut Computer, input: &str) -> String {
     let mut chars = Vec::new();
 
     while let Some(ch) = execute_dungeon(computer, input) {
-        if TRACE_ASCII {
+        if computer.iodebug {
             print!("{}", ch);
         }
         if ch == '\n' {
@@ -160,30 +114,63 @@ fn read_line2(computer: &mut Computer, input: &str) -> String {
     chars.iter().collect()
 }
 
+// TODO: iterator or something
+fn read_line(computer: &mut Computer) -> String {
+    game_io(computer, "")
+}
+
+fn read_empty_line(computer: &mut Computer) {
+    let line = game_io(computer, "");
+    assert_eq!(line, "");
+}
+
+fn read_expected_line(computer: &mut Computer, should_be: &str) {
+    let line = game_io(computer, "");
+    assert_eq!(line, should_be);
+}
+
+fn communicate_line(computer: &mut Computer, input: &str) {
+    if computer.iodebug {
+        println!("> {}", input);
+    }
+    let reply = game_io(computer, &(input.to_string() + "\n"));
+    assert_eq!(reply, "");
+}
+
 #[derive(Debug, PartialEq)]
 struct Room {
     title: String,
     description: String,
-    doors: [bool; 4],
+    doors: [bool; 4], // north, south, east, west
     items: Vec<String>,
 }
 
+const DIR_COMMANDS: &[&str] = &[ "north\n", "south\n", "east\n", "west\n" ];
+const DIR_COMMANDS_OPPOSITE: &[&str] = &[ "south\n", "north\n", "west\n", "east\n" ];
+const DIR_NAMES: &[&str] = &[ "north", "south", "east", "west" ];
+/*
 const DOOR_NORTH: usize = 0;
 const DOOR_SOUTH: usize = 1;
 const DOOR_EAST: usize = 2;
 const DOOR_WEST: usize = 3;
+*/
+
+const FORBIDDEN_ITEMS: &[&str] = &[
+    // It is suddenly completely dark! You are eaten by a Grue!
+    "photons",
+    // The giant electromagnet is stuck to you.  You can't move!!
+    "giant electromagnet",
+    // You're launched into space! Bye!
+    "escape pod",
+    // The molten lava is way too hot! You melt!
+    "molten lava",
+    // You take the infinite loop.
+    // You take the infinite loop.
+    // You take the infinite loop.
+    "infinite loop",
+];
 
 /*
- * == Hull Breach ==
- * You got in through a hole in the floor here. To keep your ship from also freezing, the hole has
- * been sealed.
- *
- * Doors here lead:
- * - east
- * - south
- * - west
- *
- * Command?
  * == Navigation ==
  * Status: Stranded. Please supply measurements from fifty stars to recalibrate.
  *
@@ -198,12 +185,12 @@ const DOOR_WEST: usize = 3;
  * Command?
  */
 fn read_room(computer: &mut Computer, inventory: &mut Option<&mut Vec<String>>) -> Room {
-    assert_eq!(read_line(computer), "");
-    assert_eq!(read_line(computer), "");
+    read_empty_line(computer);
+    read_empty_line(computer);
     let title = read_line(computer);
     let description = read_line(computer);
-    assert_eq!(read_line(computer), "");
-    let _doors_header = read_line(computer);
+    read_empty_line(computer);
+    read_expected_line(computer, "Doors here lead:");
 
     let mut doors = [false; 4];
     loop {
@@ -229,45 +216,23 @@ fn read_room(computer: &mut Computer, inventory: &mut Option<&mut Vec<String>>) 
             // keep the "- " part
             items.push(line);
         }
-        assert_eq!(read_line(computer), "Command?");
+        read_expected_line(computer, "Command?");
         if let Some(deep_pockets) = inventory {
             for grab in &items {
                 let grab = &grab[2..];
-                if grab == "photons" {
-                    // It is suddenly completely dark! You are eaten by a Grue!
-                    continue;
+                if !FORBIDDEN_ITEMS.contains(&grab) {
+                    deep_pockets.push(grab.to_string());
+                    communicate_line(computer, &("take ".to_string() + grab + "\n"));
+                    read_expected_line(computer, &("You take the ".to_string() + grab + "."));
+                    read_empty_line(computer);
+                    read_expected_line(computer, "Command?");
                 }
-                if grab == "giant electromagnet" {
-                    // The giant electromagnet is stuck to you.  You can't move!!
-                    continue;
-                }
-                if grab == "escape pod" {
-                    // You're launched into space! Bye!
-                    continue;
-                }
-                if grab == "molten lava" {
-                    // The molten lava is way too hot! You melt!
-                    continue;
-                }
-                if grab == "infinite loop" {
-                    // You take the infinite loop.
-                    // You take the infinite loop.
-                    // You take the infinite loop.
-                    continue;
-                }
-                deep_pockets.push(grab.to_string());
-                println!("{}", ("take ".to_string() + grab + "\n"));
-                let reply = read_line2(computer, &("take ".to_string() + grab + "\n"));
-                assert_eq!(reply, "");
-                assert_eq!(read_line(computer), "You take the ".to_string() + grab + ".");
-                assert_eq!(read_line(computer), "");
-                assert_eq!(read_line(computer), "Command?");
             }
         }
     } else {
         match line.as_str() {
             "Command?" => (),
-            // TODO: manage these somehow?
+            // special pressure sensitive floor
             r#"A loud, robotic voice says "Alert! Droids on this ship are heavier than the detected value!" and you are ejected back to the checkpoint."# => (),
             r#"A loud, robotic voice says "Alert! Droids on this ship are lighter than the detected value!" and you are ejected back to the checkpoint."# => (),
             r#"A loud, robotic voice says "Analysis complete! You may proceed." and you enter the cockpit."# => (),
@@ -293,34 +258,20 @@ fn crawl_dungeon(computer: &mut Computer, map: &mut Map, inventory: &mut Option<
         Entry::Occupied(_) => return this_title,
     }.doors.clone();
 
-    let directions = &[
-        ("north\n", "south\n"),
-        ("south\n", "north\n"),
-        ("east\n", "west\n"),
-        ("west\n", "east\n"),
-    ];
+    let directions = DIR_COMMANDS.iter().zip(DIR_COMMANDS_OPPOSITE.iter());
 
     let mut this_edges = [ None, None, None, None ];
 
-    for ((door_exists, &(walk, back)), edge) in doors.iter().zip(directions.iter()).zip(this_edges.iter_mut()) {
+    for ((&door_exists, edge), (&walk, &back)) in doors.iter().zip(this_edges.iter_mut()).zip(directions) {
         if !door_exists {
             continue;
         }
-        if TRACE_ASCII {
-            println!("{}", walk);
-        }
-        let line = read_line2(computer, walk);
-        assert_eq!(line, "");
+        communicate_line(computer, walk);
 
         let neigh_title = crawl_dungeon(computer, map, inventory);
         *edge = Some(neigh_title);
 
-        if TRACE_ASCII {
-            println!("{}", back);
-        }
-        let line = read_line2(computer, back);
-        assert_eq!(line, "");
-
+        communicate_line(computer, back);
         let back_here = read_room(computer, inventory);
         assert_eq!(back_here.title, this_title);
     }
@@ -333,57 +284,142 @@ fn crawl_dungeon(computer: &mut Computer, map: &mut Map, inventory: &mut Option<
     return this_title;
 }
 
-fn raw_bfs(map: &Map, source_room: &str, dest_room: &str) -> (HashMap<String, usize>, HashMap<String, (String, usize)>) {
+fn raw_bfs<'a>(map: &'a Map, source_room: &'a str, dest_room: &'a str) -> HashMap<&'a str, (&'a str, usize)> {
     let mut queue = VecDeque::new();
-    let mut distances = HashMap::new();
+    let mut visited = HashSet::new();
     let mut parents = HashMap::new();
 
-    queue.push_back((source_room.to_string(), 0));
-    distances.insert(source_room.to_string(), 0);
+    queue.push_back(source_room);
+    visited.insert(source_room);
 
     while let Some(current) = queue.pop_front() {
-        let (roomlabel, dist) = current;
+        let roomlabel = current;
         if roomlabel == dest_room {
-            // found it
             break;
         }
-        let neighs = &map.edges[&roomlabel];
+        let neighs = &map.edges[roomlabel];
         for (i, neighlabel) in neighs.iter().enumerate().filter_map(|(i, n)| n.as_ref().map(|n| (i, n))) {
-            let unknown = !distances.contains_key(neighlabel);
+            let unknown = !visited.contains(neighlabel.as_str());
             if unknown {
-                queue.push_back((neighlabel.to_string(), dist + 1));
-                distances.insert(neighlabel.to_string(), dist);
-                parents.insert(neighlabel.to_string(), (roomlabel.to_string(), i));
+                queue.push_back(neighlabel);
+                visited.insert(neighlabel);
+                parents.insert(neighlabel.as_str(), (roomlabel, i));
             }
         }
     }
 
-    (distances, parents)
+    parents
 }
 
-fn find_route(map: &Map, source_room: &str, dest_room: &str) -> Vec<usize> {
-    let (dists, parents) = raw_bfs(map, source_room, dest_room);
+fn find_route(map: &Map, source_room: &str, dest_room: &str) -> Vec<&'static str> {
+    let parents = raw_bfs(map, source_room, dest_room);
     let mut current_label = dest_room;
     let mut route = Vec::new();
-    while let Some((label, direction)) = parents.get(current_label) {
+    while let Some(&(label, direction)) = parents.get(current_label) {
         current_label = label;
-        route.insert(0, *direction);
+        route.insert(0, DIR_COMMANDS[direction]);
     }
     route
 }
 
-fn enter_checkpoint(computer: &mut Computer, map: &mut Map, inventory: &mut Option<&mut Vec<String>>) {
+fn enter_checkpoint(computer: &mut Computer, map: &Map, inventory: &mut Option<&mut Vec<String>>) {
     // FIXME: strip "=="s off
     let route = find_route(map, "== Hull Breach ==", "== Security Checkpoint ==");
-    let dirnames = [ "north\n", "south\n", "east\n", "west\n" ];
     for turn in route {
-        if TRACE_ASCII {
-            println!("{}", turn);
-        }
-        let line = read_line2(computer, dirnames[turn]);
-        assert_eq!(line, "");
+        communicate_line(computer, turn);
         read_room(computer, inventory);
     }
+}
+
+fn drop_stuff(computer: &mut Computer, drop: &[&str]) {
+    for d in drop {
+        let command = "drop ".to_string() + d + "\n";
+        communicate_line(computer, &command);
+
+        let line = read_line(computer);
+        assert_eq!(line, "You drop the ".to_string() + d + ".");
+
+        read_empty_line(computer);
+
+        let line = read_line(computer);
+        assert_eq!(line, "Command?");
+    }
+}
+
+fn attempt_weight(computer: &Computer, drop: &[&str], direction: &str) -> bool {
+    let mut computer = computer.clone();
+
+    drop_stuff(&mut computer, drop);
+
+    communicate_line(&mut computer, direction);
+
+    read_room(&mut computer, &mut None);
+    //A loud, robotic voice says "Analysis complete! You may proceed." and you enter the cockpit.
+    let line = read_line(&mut computer);
+    if line == "" {
+        // ejected back to checkpoint
+        read_room(&mut computer, &mut None);
+        return false;
+    } else {
+        // "Santa notices your small droid, looks puzzled for a moment, realizes what has happened, and radios your ship directly."
+        return true;
+    }
+}
+
+// floor is in the south
+fn reach_correct_weight<'a>(computer: &Computer, inventory: &'a [String], direction: &str) -> Vec<&'a str> {
+    let n = inventory.len();
+    let options = 1 << n;
+    for bitmap in 0..options {
+        let forget = inventory.iter().enumerate()
+            .filter(|(i, _item)| (bitmap & (1 << i)) == 0)
+            .map(|(_i, item)| item.as_str())
+            .collect::<Vec<&str>>();
+        if attempt_weight(&computer, &forget, direction) {
+            return forget;
+        }
+    }
+    panic!("not sure what to drop");
+}
+
+fn floor_direction(map: &Map) -> &'static str {
+    let route = find_route(map, "== Security Checkpoint ==", "== Pressure-Sensitive Floor ==");
+    assert_eq!(route.len(), 1);
+    route[0]
+}
+
+fn embark(computer: &mut Computer) -> String {
+    read_empty_line(computer);
+
+    // search for a complete map and collect all items that don't cause game over
+    let mut map = Map { rooms: HashMap::new(), edges: HashMap::new() };
+    let mut inventory = Vec::new();
+    crawl_dungeon(computer, &mut map, &mut Some(&mut inventory));
+
+    // found these funny things in my spacecraft:
+    // ["weather machine", "polygon", "candy cane", "manifold", "dehydrated water", "hypercube", "dark matter", "bowl of rice"]
+    // Nuutti said he got these: polygon, mutex, manifold, klein bottle, mug, loom, hypercube, pointer
+
+    // the map dfs got us back in the origin again; go to the checkpoint
+    enter_checkpoint(computer, &map, &mut Some(&mut inventory));
+    // what's the way to the magical chamber with the floor?
+    let direction = floor_direction(&map);
+
+    // figure out what's the right weight allowed by the pressure-sensitive floor
+    let useless_items = reach_correct_weight(&computer, &inventory, &direction);
+    // on my setup: ["weather machine", "polygon", "manifold", "hypercube"]
+    // leave some items here and step on the floor
+    drop_stuff(computer, &useless_items);
+    communicate_line(computer, &direction);
+    // parse where we went, but the inventory is no longer useful
+    read_room(computer, &mut None);
+
+    // end of story
+    let line = read_line(computer);
+    assert_eq!(line, "Santa notices your small droid, looks puzzled for a moment, realizes what has happened, and radios your ship directly.");
+    let pw_line = read_line(computer);
+    assert!(pw_line.starts_with("\"Oh, hello!"));
+    pw_line.chars().filter(|&ch| ch >= '0' && ch <= '9').collect()
 }
 
 fn nice_key(k: &str) -> String {
@@ -391,157 +427,70 @@ fn nice_key(k: &str) -> String {
 }
 
 fn dump_graphviz(map: &Map) {
-    let mut keys = map.rooms.keys().cloned().collect::<Vec<_>>();
+    let mut keys: Vec<&str> = map.rooms.keys().map(|s| s.as_str()).collect();
+    // graphviz cares about order, so make it consistent because hashmaps aren't
     keys.sort();
+
     println!("digraph G {{");
-    for title in &keys {
+
+    for title in keys {
         let room = &map.rooms[title];
-        print!("room_{} [label=\"{}\\l{}\\l", nice_key(&room.title), room.title, room.description);
+        print!("    room_{} [label=\"{}\\l{}\\l", nice_key(&room.title), room.title, room.description);
         print!("Items:\\l");
         for i in &room.items {
             print!("{}\\l", i);
         }
         println!("\"]");
     }
+
     for (room_title, neighs) in &map.edges {
-        let dirnames = [ "north", "south", "east", "west" ];
-        for (n, label) in neighs.iter().zip(dirnames.iter()) {
+        for (n, label) in neighs.iter().zip(DIR_NAMES.iter()) {
             if let Some(n) = n {
-                println!("room_{} -> room_{} [label=\"{}\"]", nice_key(room_title), nice_key(n), label);
+                println!("    room_{} -> room_{} [label=\"{}\"]", nice_key(room_title), nice_key(n), label);
             }
         }
     }
+
     println!(r"}}");
 }
-fn crawl_map(program: &[i64]) -> Map {
+
+fn play_game(program: &[i64]) -> String {
     let mut prog = program.to_vec();
     prog.resize(prog.len() + prog.len(), 0);
     let mut computer = Computer {
         program: prog,
         ip: 0,
-        base: 0
+        base: 0,
+        iodebug: false,
+    };
+    embark(&mut computer)
+}
+
+fn crawl_map_graphviz(program: &[i64]) {
+    let mut prog = program.to_vec();
+    prog.resize(prog.len() + prog.len(), 0);
+    let mut computer = Computer {
+        program: prog,
+        ip: 0,
+        base: 0,
+        iodebug: false,
     };
 
-    assert_eq!(read_line(&mut computer), "");
+    read_empty_line(&mut computer);
 
     let mut map = Map { rooms: HashMap::new(), edges: HashMap::new() };
     crawl_dungeon(&mut computer, &mut map, &mut None);
     dump_graphviz(&map);
-    println!("Stuff found:");
+    println!("# Stuff found:");
     for item in map.rooms.values().flat_map(|room| room.items.iter()) {
-        println!("{}", item);
+        println!("# {}", item);
     }
-    map
-}
-
-fn drop_stuff(computer: &mut Computer, drop: &[&str]) {
-    for d in drop {
-        let command = "drop ".to_string() + d + "\n";
-        if TRACE_ASCII {
-            println!("{}", command);
-        }
-        let line = read_line2(computer, &command);
-        assert_eq!(line, "");
-
-        let line = read_line(computer);
-        assert_eq!(line, "You drop the ".to_string() + d + ".");
-
-        let line = read_line(computer);
-        assert_eq!(line, "");
-
-        let line = read_line(computer);
-        assert_eq!(line, "Command?");
-    }
-}
-
-fn attempt_weight(computer: &Computer, mut keep: &[&str], drop: &[&str]) {
-    let mut computer = computer.clone();
-    let mut inventory = keep.iter().map(|s| s.to_string()).collect();
-    println!("drop this: {:?}", drop);
-    println!("try this: {:?}", inventory);
-
-    drop_stuff(&mut computer, drop);
-
-    let command = "south\n";
-    if TRACE_ASCII {
-        println!("{}", command);
-    }
-    let line = read_line2(&mut computer, command);
-    assert_eq!(line, "");
-
-    // ejected?
-    read_room(&mut computer, &mut Some(&mut inventory));
-    assert_eq!(read_line(&mut computer), "");
-    println!("hmm ==================");
-    read_room(&mut computer, &mut Some(&mut inventory));
-    //panic!("hmmmm");
-}
-
-// floor is in the south
-fn reach_correct_weight(computer: &Computer, inventory: &[String]) {
-    println!("-----------------------------------------------------------------");
-    let n = inventory.len();
-    let options = (1 << n) - 1;
-    for bitmap in 0..options {
-        let keep = inventory.iter().enumerate()
-            .filter(|(i, item)| (bitmap & (1 << i)) != 0)
-            .map(|(i, item)| item.as_str())
-            .collect::<Vec<&str>>();
-        let forget = inventory.iter().enumerate()
-            .filter(|(i, item)| (bitmap & (1 << i)) == 0)
-            .map(|(i, item)| item.as_str())
-            .collect::<Vec<&str>>();
-        attempt_weight(&computer, &keep, &forget);
-    }
-}
-
-fn enter_floor(computer: &mut Computer, inventory: &mut Vec<String>) {
-    let command = "south\n";
-    if TRACE_ASCII {
-        println!("{}", command);
-    }
-    let line = read_line2(computer, command);
-    assert_eq!(line, "");
-
-    // ejected?
-    read_room(computer, &mut Some(inventory));
-}
-
-fn embark(program: &[i64]) {
-    let mut prog = program.to_vec();
-    prog.resize(prog.len() + prog.len(), 0);
-    let mut computer = Computer {
-        program: prog,
-        ip: 0,
-        base: 0
-    };
-
-    assert_eq!(read_line(&mut computer), "");
-
-    let mut map = Map { rooms: HashMap::new(), edges: HashMap::new() };
-    let mut inventory = Vec::new();
-    crawl_dungeon(&mut computer, &mut map, &mut Some(&mut inventory));
-    //["weather machine", "polygon", "candy cane", "manifold", "dehydrated water", "hypercube", "dark matter", "bowl of rice"]
-    println!("{:?}", inventory);
-    enter_checkpoint(&mut computer, &mut map, &mut Some(&mut inventory));
-    //let right_inventory = reach_correct_weight(&computer, &inventory);
-    let droppings = ["weather machine", "polygon", "manifold", "hypercube"];
-    drop_stuff(&mut computer, &droppings);
-    for d in &droppings {
-        let i = inventory.iter().position(|item| item == d).unwrap();
-        inventory.remove(i);
-    }
-    enter_floor(&mut computer, &mut inventory);
-    loop {
-        read_line(&mut computer);
-    }
-
 }
 
 fn main() {
     let program: Vec<i64> = io::stdin().lock().lines().next().unwrap().unwrap()
         .split(',').map(|n| n.parse().unwrap()).collect();
 
-    //let map = crawl_map(&program);
-    embark(&program);
+    crawl_map_graphviz(&program);
+    println!("# main airlock password: {}", play_game(&program));
 }
