@@ -109,15 +109,45 @@ fn execute(program: &[i64]) -> (Vec<AsmRow>, HashMap<ProgAddr, Vec<ProgAddr>>) {
 }
 
 #[derive(Debug, PartialEq)]
-struct BasicBlock(ProgAddr, ProgAddr, Option<(usize, usize)>);
+struct BasicBlock {
+    // rows only aren't enough because jumps use actual addresses
+    top: ProgAddr,
+    bottom: ProgAddr,
+    source_rows: Option<(usize, usize)>
+}
 
-fn read_blocks(asm: &[AsmRow])
-        -> (HashMap<ProgAddr, BasicBlock>, HashMap<ProgAddr, (ProgAddr, Option<ProgAddr>)>) {
+impl BasicBlock {
+    fn new(top: ProgAddr, bottom: ProgAddr, source_rows: (usize, usize)) -> Self {
+        BasicBlock {
+            top,
+            bottom,
+            source_rows: Some(source_rows),
+        }
+    }
+
+    fn new_sentinel(addr: ProgAddr) -> Self {
+        BasicBlock {
+            top: addr,
+            bottom: addr,
+            source_rows: None,
+        }
+    }
+
+    fn is_sentinel(&self) -> bool {
+        self.source_rows.is_none()
+    }
+}
+
+type Blocks = HashMap<ProgAddr, BasicBlock>;
+type BlockEdge = (ProgAddr, Option<ProgAddr>);
+type BlockEdges = HashMap<ProgAddr, BlockEdge>;
+
+fn read_blocks(asm: &[AsmRow]) -> (Blocks, BlockEdges) {
 
     // begin -> (begin, end, (beginrow idx in asm, endrow idx in asm) or None if last sentinel)
-    let mut bbs: HashMap<ProgAddr, BasicBlock> = HashMap::new();
+    let mut bbs: Blocks = Blocks::new();
     // two edges: ip -> (direct fallthrough ip, branching ip if any) using the starting addr as bb identifier
-    let mut bb_edges: HashMap<ProgAddr, (ProgAddr, Option<ProgAddr>)> = HashMap::new();
+    let mut bb_edges: BlockEdges = BlockEdges::new();
 
     // bb start data
     let mut current = ProgAddr(0);
@@ -135,7 +165,7 @@ fn read_blocks(asm: &[AsmRow])
             // o the direct edge resulting from the split will get created then
             // o the split top half has only one edge
             // x (TODO does this work if the bb jumps into itself?)
-            bbs.insert(current, BasicBlock(current, row.ip, Some((current_i, i))));
+            bbs.insert(current, BasicBlock::new(current, row.ip, (current_i, i)));
             bb_edges.insert(current, (row.next_ip, Some(jumpdest)));
             current = row.next_ip;
             current_i = i + 1;
@@ -144,13 +174,13 @@ fn read_blocks(asm: &[AsmRow])
     // last bb must end with a jump
     assert!(current == asm.last().unwrap().next_ip);
     // insert sentinel end node for the last continuation
-    bbs.insert(current, BasicBlock(current, current, None));
+    bbs.insert(current, BasicBlock::new_sentinel(current));
 
     (bbs, bb_edges)
 }
 
-fn split_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>
-        , bbs: &mut HashMap<ProgAddr, BasicBlock>, bb_edges: &mut HashMap<ProgAddr, (ProgAddr, Option<ProgAddr>)>) {
+fn split_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>,
+             bbs: &mut Blocks, bb_edges: &mut BlockEdges) {
     let row_by_addr: HashMap<ProgAddr, &AsmRow> = asm.iter().map(|row| (row.ip, row)).collect();
 
     for &entrypoint in refs.keys() {
@@ -172,15 +202,15 @@ fn split_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>
                 let before_ep = topbb_last_row.ip;
                 // (beginaddr, endaddr, (beginrow idx in asm, endrow idx in asm))
                 // no jump from the top, just the fallthrough
-                let top_bb = BasicBlock(orig_bb.0, before_ep, orig_bb.2.map(|x| (x.0, rowi)));
+                let top_bb = BasicBlock::new(orig_bb.top, before_ep, (orig_bb.source_rows.unwrap().0, rowi));
                 // jumps from the bottom stay same
-                let bottom_bb = BasicBlock(entrypoint, orig_bb.1, orig_bb.2.map(|x| (rowi + 1, x.1)));
+                let bottom_bb = BasicBlock::new(entrypoint, orig_bb.bottom, (rowi + 1, orig_bb.source_rows.unwrap().1));
                 // top at the same address replaces orig, bottom is newly inserted
 
                 // fallthrough edge only
-                let old_top_edge = bb_edges.insert(orig_bb.0, (entrypoint, None));
+                let old_top_edge = bb_edges.insert(orig_bb.top, (entrypoint, None));
                 assert_eq!(old_top_edge,
-                           Some((row_by_addr[&bottom_bb.1].next_ip, row_by_addr[&bottom_bb.1].jump)));
+                           Some((row_by_addr[&bottom_bb.bottom].next_ip, row_by_addr[&bottom_bb.bottom].jump)));
                 *orig_bb = top_bb;
 
                 // destination
@@ -195,8 +225,7 @@ fn split_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>
     }
 }
 
-fn build_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>)
-        -> (HashMap<ProgAddr, BasicBlock>, HashMap<ProgAddr, (ProgAddr, Option<ProgAddr>)>) {
+fn build_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>) -> (Blocks, BlockEdges) {
     let (mut bbs, mut bb_edges) = read_blocks(asm);
 
     // some jumps might go to the middle of a bb; do another pass, split such bbs in two by
@@ -222,7 +251,7 @@ fn graphviz(_program: &[i64], asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgA
 
     for &bb_addr in &bb_addrs {
         let bb = &bbs[&bb_addr];
-        let label = if let Some(coords) = bb.2 {
+        let label = if let Some(coords) = bb.source_rows {
             let first_row = coords.0;
             let last_row = coords.1;
             let strings = asm[first_row..=last_row].iter()
@@ -232,30 +261,30 @@ fn graphviz(_program: &[i64], asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgA
             // the sentinel node has its own bb too
             "END".to_string()
         };
-        println!("L{}_{} [label=\"{}\\l\"]", (bb.0).value(), (bb.1).value(), label);
+        println!("L{}_{} [label=\"{}\\l\"]", bb.top.value(), bb.bottom.value(), label);
     }
 
     println!();
 
     // make the start bb easier to spot
     let first_bb = &bbs[&ProgAddr(0)];
-    println!("BOOT -> L{}_{}", (first_bb.0).0, (first_bb.1).0);
+    println!("BOOT -> L{}_{}", first_bb.top.value(), first_bb.bottom.value());
 
     for &from in &bb_addrs {
         let bb = &bbs[&from];
-        if bb.2.is_none() {
+        if bb.is_sentinel() {
             // XXX: sentinel edge for end?
             continue;
         }
         let &(cont, jumpopt) = &bb_edges[&from];
         let frombb = &bbs[&from];
         let contbb = &bbs[&cont];
-        println!("L{}_{} -> L{}_{} [label=\"fall\"]", (frombb.0).value(), (frombb.1).value(),
-            (contbb.0).value(), (contbb.1).value());
+        println!("L{}_{} -> L{}_{} [label=\"fall\"]", frombb.top.value(), frombb.bottom.value(),
+            (contbb.top).value(), (contbb.bottom).value());
         if let Some(jump) = jumpopt {
             let jumpbb = &bbs[&jump];
-            println!("L{}_{} -> L{}_{} [label=\"jmp\"]", (frombb.0).value(), (frombb.1).value(),
-                (jumpbb.0).value(), (jumpbb.1).value());
+            println!("L{}_{} -> L{}_{} [label=\"jmp\"]", frombb.top.value(), frombb.bottom.value(),
+                jumpbb.top.value(), jumpbb.bottom.value());
         }
     }
 
