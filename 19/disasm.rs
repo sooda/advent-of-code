@@ -108,99 +108,120 @@ fn execute(program: &[i64]) -> (Vec<AsmRow>, HashMap<ProgAddr, Vec<ProgAddr>>) {
     (asm, refs)
 }
 
+#[derive(Debug, PartialEq)]
+struct BasicBlock(ProgAddr, ProgAddr, Option<(usize, usize)>);
+
+fn read_blocks(asm: &[AsmRow])
+        -> (HashMap<ProgAddr, BasicBlock>, HashMap<ProgAddr, (ProgAddr, Option<ProgAddr>)>) {
+
+    // begin -> (begin, end, (beginrow idx in asm, endrow idx in asm) or None if last sentinel)
+    let mut bbs: HashMap<ProgAddr, BasicBlock> = HashMap::new();
+    // two edges: ip -> (direct fallthrough ip, branching ip if any) using the starting addr as bb identifier
+    let mut bb_edges: HashMap<ProgAddr, (ProgAddr, Option<ProgAddr>)> = HashMap::new();
+
+    // bb start data
+    let mut current = ProgAddr(0);
+    let mut current_i = 0;
+
+    for (i, row) in asm.iter().enumerate() {
+        // a basic block ends at a jump instruction
+        if let Some(jumpdest) = row.jump {
+            // - bbs:
+            // o bb at newip will get created next in this loop
+            // o bb at jumpdest will get created below if jumpdest isn't a normal beginning of a bb
+            // - edges:
+            // o newip becomes valid next in this loop (last instruction has a sentinel)
+            // o jumpdest becomes valid on a future iteration or during the split
+            // o the direct edge resulting from the split will get created then
+            // o the split top half has only one edge
+            // x (TODO does this work if the bb jumps into itself?)
+            bbs.insert(current, BasicBlock(current, row.ip, Some((current_i, i))));
+            bb_edges.insert(current, (row.next_ip, Some(jumpdest)));
+            current = row.next_ip;
+            current_i = i + 1;
+        }
+    }
+    // last bb must end with a jump
+    assert!(current == asm.last().unwrap().next_ip);
+    // insert sentinel end node for the last continuation
+    bbs.insert(current, BasicBlock(current, current, None));
+
+    (bbs, bb_edges)
+}
+
+fn split_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>
+        , bbs: &mut HashMap<ProgAddr, BasicBlock>, bb_edges: &mut HashMap<ProgAddr, (ProgAddr, Option<ProgAddr>)>) {
+    let row_by_addr: HashMap<ProgAddr, &AsmRow> = asm.iter().map(|row| (row.ip, row)).collect();
+
+    for &entrypoint in refs.keys() {
+        if bbs.contains_key(&entrypoint) {
+            // boring
+            continue;
+        }
+
+        // we're in the middle of a bb; look up for its top
+        let mut found = false;
+        for addr in (0..entrypoint.0).rev() {
+            let addr = ProgAddr(addr);
+
+            if let Some(orig_bb) = bbs.get_mut(&addr) {
+                // split orig_bb such that another starts at entrypoint
+                // [origbegin, entrypoint - entrypoint_prev_instruction.size] and [entrypoint, orig_end]
+                let (rowi, topbb_last_row) = asm.iter().enumerate()
+                    .find(|(_i, row)| row.next_ip == entrypoint).unwrap(); // or row_by_addr - 1?
+                let before_ep = topbb_last_row.ip;
+                // (beginaddr, endaddr, (beginrow idx in asm, endrow idx in asm))
+                // no jump from the top, just the fallthrough
+                let top_bb = BasicBlock(orig_bb.0, before_ep, orig_bb.2.map(|x| (x.0, rowi)));
+                // jumps from the bottom stay same
+                let bottom_bb = BasicBlock(entrypoint, orig_bb.1, orig_bb.2.map(|x| (rowi + 1, x.1)));
+                // top at the same address replaces orig, bottom is newly inserted
+
+                // fallthrough edge only
+                let old_top_edge = bb_edges.insert(orig_bb.0, (entrypoint, None));
+                assert_eq!(old_top_edge,
+                           Some((row_by_addr[&bottom_bb.1].next_ip, row_by_addr[&bottom_bb.1].jump)));
+                *orig_bb = top_bb;
+
+                // destination
+                let prev_at_ep = bbs.insert(entrypoint, bottom_bb);
+                assert_eq!(prev_at_ep, None); // if there was one, this split wouldn't have happened
+                bb_edges.insert(entrypoint, old_top_edge.unwrap());
+                found = true;
+                break;
+            }
+        }
+        assert!(found);
+    }
+}
+
+fn build_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>)
+        -> (HashMap<ProgAddr, BasicBlock>, HashMap<ProgAddr, (ProgAddr, Option<ProgAddr>)>) {
+    let (mut bbs, mut bb_edges) = read_blocks(asm);
+
+    // some jumps might go to the middle of a bb; do another pass, split such bbs in two by
+    // looking at each address some other jump refers to
+    split_bbs(asm, refs, &mut bbs, &mut bb_edges);
+
+    (bbs, bb_edges)
+}
+
 fn graphviz(_program: &[i64], asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>) {
     println!("digraph G {{");
     println!("node [shape=box, fontname=monospace]");
     println!();
 
-    let row_by_addr: HashMap<ProgAddr, &AsmRow> = asm.iter().map(|row| (row.ip, row)).collect();
+    let (bbs, bb_edges) = build_bbs(asm, refs);
 
-    let (bbs, bb_edges) = {
-        // begin -> (begin, end, (beginrow idx in asm, endrow idx in asm) or None if last sentinel)
-        let mut bbs: HashMap<ProgAddr, (ProgAddr, ProgAddr, Option<(usize, usize)>)> = HashMap::new();
-        // two edges: ip -> (direct fallthrough ip, branching ip if any) using the starting addr as bb identifier
-        let mut bb_edges: HashMap<ProgAddr, (ProgAddr, Option<ProgAddr>)> = HashMap::new();
-        {
-            // bb start data
-            let mut current = ProgAddr(0);
-            let mut current_i = 0;
-
-            for (i, row) in asm.iter().enumerate() {
-                // a basic block ends at a jump instruction
-                if let Some(jumpdest) = row.jump {
-                    // - bbs:
-                    // o bb at newip will get created next in this loop
-                    // o bb at jumpdest will get created below if jumpdest isn't a normal beginning of a bb
-                    // - edges:
-                    // o newip becomes valid next in this loop (last instruction has a sentinel)
-                    // o jumpdest becomes valid on a future iteration or during the split
-                    // o the direct edge resulting from the split will get created then
-                    // o the split top half has only one edge
-                    // x (TODO does this work if the bb jumps into itself?)
-                    bbs.insert(current, (current, row.ip, Some((current_i, i))));
-                    bb_edges.insert(current, (row.next_ip, Some(jumpdest)));
-                    current = row.next_ip;
-                    current_i = i + 1;
-                }
-            }
-            // last bb must end with a jump
-            assert!(current == asm.last().unwrap().next_ip);
-            // insert sentinel end node for the last continuation
-            bbs.insert(current, (current, current, None));
-        }
-
-        // some jumps might go to the middle of a bb; do another pass, split such bbs in two by
-        // looking at each address some other jump refers to
-        for &entrypoint in refs.keys() {
-            if bbs.contains_key(&entrypoint) {
-                // boring
-                continue;
-            }
-
-            // we're in the middle of a bb; look up for its top
-            let mut found = false;
-            for addr in (0..entrypoint.0).rev() {
-                let addr = ProgAddr(addr);
-
-                if let Some(orig_bb) = bbs.get_mut(&addr) {
-                    // split orig_bb such that another starts at entrypoint
-                    // [origbegin, entrypoint - entrypoint_prev_instruction.size] and [entrypoint, orig_end]
-                    let (rowi, topbb_last_row) = asm.iter().enumerate()
-                        .find(|(_i, row)| row.next_ip == entrypoint).unwrap(); // or row_by_addr - 1?
-                    let before_ep = topbb_last_row.ip;
-                    // (beginaddr, endaddr, (beginrow idx in asm, endrow idx in asm))
-                    // no jump from the top, just the fallthrough
-                    let top_bb = (orig_bb.0, before_ep, orig_bb.2.map(|x| (x.0, rowi)));
-                    // jumps from the bottom stay same
-                    let bottom_bb = (entrypoint, orig_bb.1, orig_bb.2.map(|x| (rowi + 1, x.1)));
-                    // top at the same address replaces orig, bottom is newly inserted
-
-                    // fallthrough edge only
-                    let old_top_edge = bb_edges.insert(orig_bb.0, (entrypoint, None));
-                    assert_eq!(old_top_edge,
-                        Some((row_by_addr[&bottom_bb.1].next_ip, row_by_addr[&bottom_bb.1].jump)));
-                    *orig_bb = top_bb;
-
-                    // destination
-                    let prev_at_ep = bbs.insert(entrypoint, bottom_bb);
-                    assert_eq!(prev_at_ep, None); // if there was one, this split wouldn't have happened
-                    bb_edges.insert(entrypoint, old_top_edge.unwrap());
-                    found = true;
-                    break;
-                }
-            }
-            assert!(found);
-        }
-
-        (bbs, bb_edges)
-    };
+    // sort the starting addresses that the names start with for consistent bbs; graphviz cares
+    // about the input order
+    let mut bb_addrs = bbs.keys().copied().collect::<Vec<ProgAddr>>();
+    bb_addrs.sort();
 
     // dump bb names first for easier debugging of output
 
-    let mut bb_addrs = bbs.keys().copied().collect::<Vec<ProgAddr>>();
-    bb_addrs.sort();
     for &bb_addr in &bb_addrs {
-        let bb = bbs[&bb_addr];
+        let bb = &bbs[&bb_addr];
         let label = if let Some(coords) = bb.2 {
             let first_row = coords.0;
             let last_row = coords.1;
@@ -217,23 +238,23 @@ fn graphviz(_program: &[i64], asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgA
     println!();
 
     // make the start bb easier to spot
-    let first_bb = bbs[&ProgAddr(0)];
+    let first_bb = &bbs[&ProgAddr(0)];
     println!("BOOT -> L{}_{}", (first_bb.0).0, (first_bb.1).0);
 
     for &from in &bb_addrs {
-        let bb = bbs[&from];
+        let bb = &bbs[&from];
         if bb.2.is_none() {
             // XXX: sentinel edge for end?
             continue;
         }
         let &(cont, jumpopt) = &bb_edges[&from];
-        let frombb = bbs[&from];
-        let contbb = bbs[&cont];
-        println!("L{}_{} -> L{}_{}", (frombb.0).value(), (frombb.1).value(),
+        let frombb = &bbs[&from];
+        let contbb = &bbs[&cont];
+        println!("L{}_{} -> L{}_{} [label=\"fall\"]", (frombb.0).value(), (frombb.1).value(),
             (contbb.0).value(), (contbb.1).value());
         if let Some(jump) = jumpopt {
-            let jumpbb = bbs[&jump];
-            println!("L{}_{} -> L{}_{}", (frombb.0).value(), (frombb.1).value(),
+            let jumpbb = &bbs[&jump];
+            println!("L{}_{} -> L{}_{} [label=\"jmp\"]", (frombb.0).value(), (frombb.1).value(),
                 (jumpbb.0).value(), (jumpbb.1).value());
         }
     }
