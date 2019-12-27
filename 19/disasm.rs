@@ -294,7 +294,7 @@ impl BasicBlock {
 }
 
 type Blocks = HashMap<ProgAddr, BasicBlock>;
-type BlockEdge = (ProgAddr, Option<ProgAddr>);
+type BlockEdge = (Option<ProgAddr>, Option<ProgAddr>);
 type BlockEdges = HashMap<ProgAddr, BlockEdge>;
 
 fn read_blocks(asm: &[AsmRow]) -> (Blocks, BlockEdges) {
@@ -321,7 +321,7 @@ fn read_blocks(asm: &[AsmRow]) -> (Blocks, BlockEdges) {
             // o the split top half has only one edge
             // x (TODO does this work if the bb jumps into itself?)
             bbs.insert(current, BasicBlock::new(current, row.ip, (current_i, i)));
-            bb_edges.insert(current, (row.next_ip, Some(jumpdest)));
+            bb_edges.insert(current, (Some(row.next_ip), Some(jumpdest)));
             current = row.next_ip;
             current_i = i + 1;
         }
@@ -363,9 +363,9 @@ fn split_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>,
                 // top at the same address replaces orig, bottom is newly inserted
 
                 // fallthrough edge only
-                let old_top_edge = bb_edges.insert(orig_bb.top, (entrypoint, None));
+                let old_top_edge = bb_edges.insert(orig_bb.top, (Some(entrypoint), None));
                 assert_eq!(old_top_edge,
-                           Some((row_by_addr[&bottom_bb.bottom].next_ip, row_by_addr[&bottom_bb.bottom].jump)));
+                           Some((Some(row_by_addr[&bottom_bb.bottom].next_ip), row_by_addr[&bottom_bb.bottom].jump)));
                 *orig_bb = top_bb;
 
                 // destination
@@ -380,12 +380,53 @@ fn split_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>,
     }
 }
 
+// note that if the program is self-modifying and alters these operands, then the missing edges
+// will be very confusing in the diagram. Let's hope that it a) doesn't happen or b) will be
+// detectable.
+fn cut_edges(asm: &[AsmRow], _refs: &HashMap<ProgAddr, Vec<ProgAddr>>,
+             bbs: &mut Blocks, bb_edges: &mut BlockEdges) {
+    for bb in bbs.values() {
+        if let Some(rows) = bb.source_rows {
+            let row = &asm[rows.1];
+            if let Jnz(op) = &row.instruction {
+                if let SourceParam::Immediate(val) = op.src {
+                    let mut edge = bb_edges.get_mut(&bb.top).unwrap();
+                    if val != 0 {
+                        // jump always taken
+                        edge.0 = None;
+                    } else {
+                        // jump never taken
+                        edge.1 = None;
+                    }
+                }
+            } else if let Jz(op) = &row.instruction {
+                if let SourceParam::Immediate(val) = op.src {
+                    let mut edge = bb_edges.get_mut(&bb.top).unwrap();
+                    if val == 0 {
+                        // jump always taken
+                        edge.0 = None;
+                    } else {
+                        // jump never taken
+                        edge.1 = None;
+                    }
+                }
+            } else if let Stop = &row.instruction {
+                let mut edge = bb_edges.get_mut(&bb.top).unwrap();
+                let sentinel = bbs.values().find(|bb| bb.is_sentinel()).unwrap();
+                edge.0 = Some(sentinel.top);
+            }
+        }
+    }
+}
+
 fn build_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>) -> (Blocks, BlockEdges) {
     let (mut bbs, mut bb_edges) = read_blocks(asm);
 
     // some jumps might go to the middle of a bb; do another pass, split such bbs in two by
     // looking at each address some other jump refers to
     split_bbs(asm, refs, &mut bbs, &mut bb_edges);
+
+    cut_edges(asm, refs, &mut bbs, &mut bb_edges);
 
     (bbs, bb_edges)
 }
@@ -413,7 +454,7 @@ fn graphviz(_program: &[i64], asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgA
                 .map(|row| format!("{:05}: {}", row.ip.0, row.description)).collect::<Vec<_>>();
             strings.join("\\l")
         } else {
-            // the sentinel node has its own bb too
+            // the sentinel node has its own bb too, the last instruction may advance to it
             "END".to_string()
         };
         println!("L{}_{} [label=\"{}\\l\"]", bb.top.value(), bb.bottom.value(), label);
@@ -431,11 +472,15 @@ fn graphviz(_program: &[i64], asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgA
             // XXX: sentinel edge for end?
             continue;
         }
-        let &(cont, jumpopt) = &bb_edges[&from];
+
+        let &(contopt, jumpopt) = &bb_edges[&from];
         let frombb = &bbs[&from];
-        let contbb = &bbs[&cont];
-        println!("L{}_{} -> L{}_{} [label=\"fall\"]", frombb.top.value(), frombb.bottom.value(),
-            (contbb.top).value(), (contbb.bottom).value());
+        if let Some(cont) = contopt {
+            let contbb = &bbs[&cont];
+            println!("L{}_{} -> L{}_{} [label=\"fall\"]", frombb.top.value(), frombb.bottom.value(),
+                (contbb.top).value(), (contbb.bottom).value());
+        }
+
         if let Some(jump) = jumpopt {
             let jumpbb = &bbs[&jump];
             println!("L{}_{} -> L{}_{} [label=\"jmp\"]", frombb.top.value(), frombb.bottom.value(),
