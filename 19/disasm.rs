@@ -605,14 +605,14 @@ fn rawasm(program: &[i64], asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr
         };
 
         // HACK: stringize instruction first, then pad that
-        println!("{:05}: {:<25} {:<30}{}", row.ip.value(), raw_numbs, format!("{}", row.instruction), jumpfrom);
+        println!("#{:05}: {:<25} {:<30}{}", row.ip.value(), raw_numbs, format!("{}", row.instruction), jumpfrom);
     }
 
     // "data segment"
     let mut ip = asm.last().unwrap().next_ip.0;
     while ip < program.len() {
         let right = if ip + 10 < program.len() { ip + 10 } else { program.len() };
-        println!("{:05}: {:>4?}", ip, &program[ip..right]);
+        println!("#{:05}: {:>4?}", ip, &program[ip..right]);
         ip += 10;
     }
 }
