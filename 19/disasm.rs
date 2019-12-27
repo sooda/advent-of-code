@@ -13,7 +13,8 @@ impl fmt::Display for SourceParam {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Immediate(val) => write!(f, "{:>6}", val),
-            Self::Position(addr) => write!(f, "[{:>4}]", addr),
+            //Self::Position(addr) => write!(f, "[{:>4}]", addr),
+            Self::Position(addr) => addr_nickname(addr).map(|name| write!(f, "{:>6}", name)).unwrap_or_else(|| write!(f, "[{:>4}]", addr)),
             Self::Relative(addr) => write!(f, "[{:>4} + base]", addr),
         }
     }
@@ -29,10 +30,16 @@ enum DestParam {
 impl fmt::Display for DestParam {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            Self::Position(addr) => write!(f, "[{:>4}]", addr),
+            //Self::Position(addr) => write!(f, "[{:>4}]", addr),
+            Self::Position(addr) => addr_nickname(addr).map(|name| write!(f, "{:>6}", name)).unwrap_or_else(|| write!(f, "[{:>4}]", addr)),
             Self::Relative(addr) => write!(f, "[{:>4} + base]", addr),
         }
     }
+}
+
+enum Param {
+    Source(SourceParam),
+    Dest(DestParam),
 }
 
 #[derive(Debug)]
@@ -542,6 +549,33 @@ fn print_edgedesc(asm: &[AsmRow], bbs: &Blocks, frombb: &BasicBlock, nextopt: Op
                  title, hint);
     }
 
+}
+
+fn addr_nickname(addr: i64) -> Option<&'static str> {
+    match addr {
+        1033 => Some("r_in"),
+        1032 => Some("r0"),
+        1034 => Some("r1"),
+        1035 => Some("r2"),
+        1036 => Some("r3"),
+        1037 => Some("r4"),
+        1038 => Some("r5"),
+        1039 => Some("r6"),
+        1040 => Some("r7"),
+        1041 => Some("r8"),
+        1042 => Some("r9"),
+        1043 => Some("ra"),
+        1044 => Some("rb"),
+        _ => None,
+    }
+}
+
+fn nicknames(param: Param) -> Option<&'static str> {
+    match param {
+        Param::Source(SourceParam::Relative(addr)) => addr_nickname(addr),
+        Param::Dest(DestParam::Relative(addr)) => addr_nickname(addr),
+        _ => None,
+    }
 }
 
 fn graphviz(_program: &[i64], asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>) {
