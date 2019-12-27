@@ -1,10 +1,95 @@
 use std::io::{self, BufRead};
 use std::collections::HashMap;
 
-fn step(program: &[i64], ip: usize) -> Option<(usize, String, Option<usize>)> {
+#[derive(Debug)]
+enum SourceParam {
+    Immediate(i64),
+    Position(i64),
+    Relative(i64),
+}
+
+#[derive(Debug)]
+enum DestParam {
+    Position(i64),
+    Relative(i64),
+}
+
+#[derive(Debug)]
+struct OpAdd {
+    a: SourceParam,
+    b: SourceParam,
+    dest: DestParam,
+}
+
+#[derive(Debug)]
+struct OpMul {
+    a: SourceParam,
+    b: SourceParam,
+    dest: DestParam,
+}
+
+#[derive(Debug)]
+struct OpIn {
+    dest: DestParam,
+}
+
+#[derive(Debug)]
+struct OpOut {
+    val: SourceParam,
+}
+
+// jump if argument is not zero
+#[derive(Debug)]
+struct OpJnz {
+    src: SourceParam,
+    addr: SourceParam,
+}
+
+// jump if argument is zero
+#[derive(Debug)]
+struct OpJz {
+    src: SourceParam,
+    addr: SourceParam,
+}
+
+#[derive(Debug)]
+struct OpGreater {
+    a: SourceParam,
+    b: SourceParam,
+    dest: DestParam,
+}
+
+#[derive(Debug)]
+struct OpEqual {
+    a: SourceParam,
+    b: SourceParam,
+    dest: DestParam,
+}
+
+#[derive(Debug)]
+struct OpBase {
+    val: SourceParam,
+}
+
+#[derive(Debug)]
+enum Instruction {
+    Add(OpAdd),
+    Mul(OpMul),
+    In(OpIn),
+    Out(OpOut),
+    Jnz(OpJnz),
+    Jz(OpJz),
+    Gt(OpGreater),
+    Eq(OpEqual),
+    Base(OpBase),
+    Stop,
+}
+use Instruction::*;
+
+fn step(program: &[i64], ip: usize) -> Option<(usize, String, Instruction, Option<usize>)> {
     let opcode = program[ip] % 100;
     if opcode == 99 {
-        return Some((ip + 1, "stop".to_string(), None));
+        return Some((ip + 1, "stop".to_string(), Instruction::Stop, None));
     }
     let mode0 = program[ip] / 100 % 10;
     let mode1 = program[ip] / 1000 % 10;
@@ -27,6 +112,19 @@ fn step(program: &[i64], ip: usize) -> Option<(usize, String, Option<usize>)> {
     let mut0 = || { assert!(!immflags.0); val0() };
     let mut2 = || { assert!(!immflags.2); val2() };
 
+    let imm_inst = |x| SourceParam::Immediate(program[ip + 1 + x]);
+    let pos_inst = |x| SourceParam::Position(program[ip + 1 + x]);
+    let rel_inst = |x| SourceParam::Relative(program[ip + 1 + x]);
+
+    let dpos_inst = |x| DestParam::Position(program[ip + 1 + x]);
+    let drel_inst = |x| DestParam::Relative(program[ip + 1 + x]);
+
+    let val0_inst = || if immflags.0 { imm_inst(0) } else if relflags.0 { rel_inst(0) } else { pos_inst(0) };
+    let val1_inst = || if immflags.1 { imm_inst(1) } else if relflags.1 { rel_inst(1) } else { pos_inst(1) };
+
+    let mut0_inst = || { assert!(!immflags.0); if relflags.0 { drel_inst(0) } else { dpos_inst(0) } };
+    let mut2_inst = || { assert!(!immflags.2); if relflags.2 { drel_inst(2) } else { dpos_inst(2) } };
+
     let imm1_num = || program[ip + 2];
     let val1_num = ||
         if immflags.1 {
@@ -38,32 +136,87 @@ fn step(program: &[i64], ip: usize) -> Option<(usize, String, Option<usize>)> {
         };
 
     match opcode {
-        1 => {
-            Some((ip + 4, format!("add {:>6} {:>6} => {:>6}", val0(), val1(), mut2()), None))
+        1 => { Some((
+                    ip + 4,
+                    format!("add {:>6} {:>6} => {:>6}", val0(), val1(), mut2()),
+                    Instruction::Add(OpAdd {
+                        a: val0_inst(),
+                        b: val1_inst(),
+                        dest: mut2_inst(),
+                    }),
+                    None))
         },
-        2 => {
-            Some((ip + 4, format!("mul {:>6} {:>6} => {:>6}", val0(), val1(), mut2()), None))
+        2 => { Some((
+                    ip + 4,
+                    format!("mul {:>6} {:>6} => {:>6}", val0(), val1(), mut2()),
+                    Instruction::Mul(OpMul {
+                        a: val0_inst(),
+                        b: val1_inst(),
+                        dest: mut2_inst(),
+                    }),
+                    None))
         },
-        3 => {
-            Some((ip + 2, format!("in  {:>6}", mut0()), None))
+        3 => { Some((
+                    ip + 2,
+                    format!("in  {:>6}", mut0()),
+                    Instruction::In(OpIn {
+                        dest: mut0_inst(),
+                    }),
+                    None))
         }
-        4 => {
-            Some((ip + 2, format!("out {:>6}", val0()), None))
+        4 => { Some((
+                    ip + 2,
+                    format!("out {:>6}", val0()),
+                    Instruction::Out(OpOut {
+                        val: val0_inst(),
+                    }),
+                    None))
         },
-        5 => {
-            Some((ip + 3, format!("jnz {:>6} {:>6}", val0(), val1()), val1_num()))
+        5 => { Some((
+                    ip + 3,
+                    format!("jnz {:>6} {:>6}", val0(), val1()),
+                    Instruction::Jnz(OpJnz {
+                        src: val0_inst(),
+                        addr: val1_inst(),
+                    }),
+                    val1_num()))
         },
-        6 => {
-            Some((ip + 3, format!("jz  {:>6} {:>6}", val0(), val1()), val1_num()))
+        6 => { Some((
+                    ip + 3,
+                    format!("jz  {:>6} {:>6}", val0(), val1()),
+                    Instruction::Jz(OpJz {
+                        src: val0_inst(),
+                        addr: val1_inst(),
+                    }),
+                    val1_num()))
         },
-        7 => {
-            Some((ip + 4, format!("gt  {:>6} {:>6} => {:>6}", val0(), val1(), mut2()), None))
+        7 => { Some((
+                    ip + 4,
+                    format!("gt  {:>6} {:>6} => {:>6}", val0(), val1(), mut2()),
+                    Instruction::Gt(OpGreater {
+                        a: val0_inst(),
+                        b: val1_inst(),
+                        dest: mut2_inst(),
+                    }),
+                    None))
         },
-        8 => {
-            Some((ip + 4, format!("eq  {:>6} {:>6} => {:>6}", val0(), val1(), mut2()), None))
+        8 => { Some((
+                    ip + 4,
+                    format!("eq  {:>6} {:>6} => {:>6}", val0(), val1(), mut2()),
+                    Instruction::Eq(OpEqual {
+                        a: val0_inst(),
+                        b: val1_inst(),
+                        dest: mut2_inst(),
+                    }),
+                    None))
         },
-        9 => {
-            Some((ip + 2, format!("base {:>6}", val0()), None))
+        9 => { Some((
+                    ip + 2,
+                    format!("base {:>6}", val0()),
+                    Instruction::Base(OpBase {
+                        val: val0_inst(),
+                    }),
+                    None))
         },
         _ => None // probably a data section after the program
     }
@@ -84,6 +237,7 @@ struct AsmRow {
     ip: ProgAddr,
     next_ip: ProgAddr,
     description: String,
+    instruction: Instruction,
     jump: Option<ProgAddr>,
 }
 
@@ -92,11 +246,12 @@ fn execute(program: &[i64]) -> (Vec<AsmRow>, HashMap<ProgAddr, Vec<ProgAddr>>) {
     let mut asm = Vec::new();
     let mut refs = HashMap::new();
 
-    while let Some((next_ip, description, jump)) = step(program, ip) {
+    while let Some((next_ip, description, instruction, jump)) = step(program, ip) {
         asm.push(AsmRow {
             ip: ProgAddr(ip),
             next_ip: ProgAddr(next_ip),
             description,
+            instruction,
             jump: jump.map(ProgAddr),
         });
         if let Some(dest) = jump {
