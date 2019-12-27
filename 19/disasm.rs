@@ -517,6 +517,33 @@ fn build_bbs(asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>) -> (Blocks
     (bbs, bb_edges)
 }
 
+fn inst_edge_hint(inst: &Instruction, is_jump: bool) -> String {
+    match inst {
+        Jnz(OpJnz { src: SourceParam::Immediate(_), .. })  => "".to_string(),
+        Jnz(OpJnz { src, .. }) if  is_jump => format!("({} != 0)", src),
+        Jnz(OpJnz { src, .. }) if !is_jump => format!("({} == 0)", src),
+
+        Jz(OpJz { src: SourceParam::Immediate(_), .. })  => "".to_string(),
+        Jz(OpJz { src, .. }) if  is_jump => format!("({} == 0)", src),
+        Jz(OpJz { src, .. }) if !is_jump => format!("({} != 0)", src),
+        _ => "".to_string(),
+    }
+}
+
+fn print_edgedesc(asm: &[AsmRow], bbs: &Blocks, frombb: &BasicBlock, nextopt: Option<ProgAddr>, title: &str, is_jump: bool) {
+    if let Some(next) = nextopt {
+        let nextbb = &bbs[&next];
+        let rows = frombb.source_rows.unwrap();
+        let row = &asm[rows.1];
+        let hint = inst_edge_hint(&row.instruction, is_jump);
+        println!("L{}_{} -> L{}_{} [label=\"{}\\n{}\"]",
+                 frombb.top.value(), frombb.bottom.value(),
+                 (nextbb.top).value(), (nextbb.bottom).value(),
+                 title, hint);
+    }
+
+}
+
 fn graphviz(_program: &[i64], asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgAddr>>) {
     println!("digraph G {{");
     println!("node [shape=box, fontname=monospace]");
@@ -561,17 +588,8 @@ fn graphviz(_program: &[i64], asm: &[AsmRow], refs: &HashMap<ProgAddr, Vec<ProgA
 
         let &(contopt, jumpopt) = &bb_edges[&from];
         let frombb = &bbs[&from];
-        if let Some(cont) = contopt {
-            let contbb = &bbs[&cont];
-            println!("L{}_{} -> L{}_{} [label=\"fall\"]", frombb.top.value(), frombb.bottom.value(),
-                (contbb.top).value(), (contbb.bottom).value());
-        }
-
-        if let Some(jump) = jumpopt {
-            let jumpbb = &bbs[&jump];
-            println!("L{}_{} -> L{}_{} [label=\"jmp\"]", frombb.top.value(), frombb.bottom.value(),
-                jumpbb.top.value(), jumpbb.bottom.value());
-        }
+        print_edgedesc(asm, &bbs, frombb, contopt, "fall", false);
+        print_edgedesc(asm, &bbs, frombb, jumpopt, "jump", true);
     }
 
     println!("}}");
