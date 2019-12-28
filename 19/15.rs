@@ -1,3 +1,6 @@
+mod day15rusted;
+use day15rusted::OxygenMap;
+
 use std::io::{self, BufRead};
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -83,21 +86,26 @@ struct Computer {
     program: Vec<i64>,
     ip: usize,
     base: i64,
+    rusted: OxygenMap,
 }
 
 fn execute(computer: &mut Computer, next_in: i64) -> Option<i64> {
-    let inputs = &[next_in];
-    let mut input = inputs.iter();
-    while let Some((newip, newbase, newout)) =
-            step(&mut computer.program, computer.ip, computer.base, &mut input) {
-        computer.ip = newip;
-        computer.base = newbase;
-        if newout.is_some() {
-            // return *after* updating the ip or the computer will keep replying infinitely... doh.
-            return newout;
+    if false {
+        let inputs = &[next_in];
+        let mut input = inputs.iter();
+        while let Some((newip, newbase, newout)) =
+                step(&mut computer.program, computer.ip, computer.base, &mut input) {
+            computer.ip = newip;
+            computer.base = newbase;
+            if newout.is_some() {
+                // return *after* updating the ip or the computer will keep replying infinitely... doh.
+                return newout;
+            }
         }
+        None
+    } else {
+        computer.rusted.run(next_in)
     }
-    None
 }
 
 const LOCATION_WALL: i64 = 0;
@@ -143,7 +151,7 @@ fn explore(computer: &mut Computer, grid: &mut Grid, x: i32, y: i32, current_til
         return;
     }
     grid.insert((x, y), current_tile);
-    if false { // animation
+    if true { // animation
         println!("at {} {}", x, y);
         dump(grid, (x, y));
     }
@@ -211,7 +219,8 @@ fn oxygen_quest(program: &[i64]) -> (usize, usize) {
     let mut computer = Computer {
         program: prog,
         ip: 0,
-        base: 0
+        base: 0,
+        rusted: OxygenMap::new(),
     };
 
     // dfs the map using the robot, don't stop at the oxygen tile yet
