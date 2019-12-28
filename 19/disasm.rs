@@ -553,19 +553,19 @@ fn print_edgedesc(asm: &[AsmRow], bbs: &Blocks, frombb: &BasicBlock, nextopt: Op
 
 fn addr_nickname(addr: i64) -> Option<&'static str> {
     match addr {
-        1033 => Some("r_in"),
-        1032 => Some("r0"),
-        1034 => Some("r1"),
-        1035 => Some("r2"),
-        1036 => Some("r3"),
-        1037 => Some("r4"),
-        1038 => Some("r5"),
-        1039 => Some("r6"),
-        1040 => Some("r7"),
-        1041 => Some("r8"),
-        1042 => Some("r9"),
-        1043 => Some("ra"),
-        1044 => Some("rb"),
+        1032 => Some("tmp"),
+        1033 => Some("inp"),
+        1034 => Some("currx"),
+        1035 => Some("curry"),
+        1036 => Some("oddx"),
+        1037 => Some("halfy"),
+        1038 => Some("oddy"),
+        1039 => Some("nx"),
+        1040 => Some("ny"),
+        1041 => Some("noddx"),
+        1042 => Some("nhalfy"),
+        1043 => Some("noddy"),
+        1044 => Some("outval"),
         _ => None,
     }
 }
