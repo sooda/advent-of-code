@@ -117,15 +117,15 @@ impl fmt::Display for OpJz {
 }
 
 #[derive(Debug)]
-struct OpGreater {
+struct OpLess {
     a: SourceParam,
     b: SourceParam,
     dest: DestParam,
 }
 
-impl fmt::Display for OpGreater {
+impl fmt::Display for OpLess {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "gt  {:>6} {:>6} => {:>6}", self.a, self.b, self.dest)
+        write!(f, "lt  {:>6} {:>6} => {:>6}", self.a, self.b, self.dest)
     }
 }
 
@@ -161,7 +161,7 @@ enum Instruction {
     Out(OpOut),
     Jnz(OpJnz),
     Jz(OpJz),
-    Gt(OpGreater),
+    Lt(OpLess),
     Eq(OpEqual),
     Base(OpBase),
     Stop,
@@ -177,7 +177,7 @@ impl fmt::Display for Instruction {
             Out(op)  => write!(f, "{}", op),
             Jnz(op)  => write!(f, "{}", op),
             Jz(op)   => write!(f, "{}", op),
-            Gt(op)   => write!(f, "{}", op),
+            Lt(op)   => write!(f, "{}", op),
             Eq(op)   => write!(f, "{}", op),
             Base(op) => write!(f, "{}", op),
             Stop     => write!(f, "stop"),
@@ -287,7 +287,7 @@ fn step(program: &[i64], ip: usize) -> Option<(usize, Instruction, Option<usize>
 
         7 => { Some((
                     ip + 4,
-                    Instruction::Gt(OpGreater {
+                    Instruction::Lt(OpLess {
                         a: input(0),
                         b: input(1),
                         dest: output(2),
