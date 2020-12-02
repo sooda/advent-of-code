@@ -5,8 +5,8 @@ use regex::Regex;
 
 #[derive(Debug)]
 struct CorporatePolicy {
-    a: u32,
-    b: u32,
+    a: usize,
+    b: usize,
     ch: char,
 }
 
@@ -21,13 +21,20 @@ fn parse_pwline(input: &str) -> (CorporatePolicy, String) {
 }
 
 fn validate_pw((policy, pw): &&(CorporatePolicy, String)) -> bool {
-    let n = pw.chars().filter(|&ch| ch == policy.ch).count() as u32;
+    let n = pw.chars().filter(|&ch| ch == policy.ch).count();
     n >= policy.a && n <= policy.b
+}
+
+fn officially_validate_pw((policy, pw): &&(CorporatePolicy, String)) -> bool {
+    let a = pw.as_bytes()[policy.a - 1] as char;
+    let b = pw.as_bytes()[policy.b - 1] as char;
+    (a == policy.ch) ^ (b == policy.ch)
 }
 
 fn main() {
     let database: Vec<_> = io::stdin().lock().lines()
         .map(|pwline| parse_pwline(&pwline.unwrap()))
         .collect();
-    println!("{:?}", database.iter().filter(validate_pw).count());
+    println!("{}", database.iter().filter(validate_pw).count());
+    println!("{}", database.iter().filter(officially_validate_pw).count());
 }
