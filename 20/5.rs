@@ -22,4 +22,14 @@ fn main() {
     // why no coercion with map(seat_id) :(
     let max_seat_id = boarding_passes.iter().map(|p| seat_id(p)).max().unwrap();
     println!("{}", max_seat_id);
+
+    let mut ids: Vec<_> = boarding_passes.iter().map(|p| seat_id(p)).collect();
+    ids.sort();
+    for pair in ids.windows(2) {
+        // note: our place is never in the front or back by definition
+        if pair[1] != pair[0] + 1 {
+            println!("{}", pair[0] + 1);
+            // there should be only one, but continue looping to double check
+        }
+    }
 }
