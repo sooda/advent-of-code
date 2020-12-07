@@ -1,6 +1,13 @@
 use std::io::{self, BufRead};
 use std::collections::{HashMap, HashSet};
 
+fn bags_inside(bag_contents: &HashMap<&str, &Vec<(u32, String)>>, owner: &str) -> u32 {
+    bag_contents.get(owner).unwrap().iter().map(|(organ_count, organ_name)| {
+        // this many bags, and equally many units of contents of this bag kind
+        organ_count + organ_count * bags_inside(bag_contents, organ_name)
+    }).sum()
+}
+
 // (the naming here is a bit confusing because a bag owner is a child in the tree)
 fn search_bags<'a>(bag_owners: &HashMap<&'a str, Vec<&'a str>>, which: &'a str, visit_map: &mut HashSet<&'a str>) -> usize {
     if visit_map.contains(which) {
@@ -56,4 +63,8 @@ fn main() {
         }
     }
     println!("{}", eventually_contained(&bag_owners, "shiny gold"));
+
+    let bag_contents: HashMap<&str, &Vec<(u32, String)>> = bags.iter()
+        .map(|(bag, contents)| (bag as &str, contents)).collect();
+    println!("{}", bags_inside(&bag_contents, "shiny gold"));
 }
