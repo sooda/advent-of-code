@@ -2,7 +2,7 @@ use std::io::{self, BufRead};
 use std::collections::HashSet;
 use std::str::FromStr;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 enum Instruction {
     Acc(i32),
     Jmp(i32),
@@ -29,13 +29,13 @@ impl FromStr for Instruction {
     }
 }
 
-fn execute(program: &[Instruction]) -> i32 {
+fn execute(program: &[Instruction]) -> (i32, bool) {
     let mut pc = 0;
     let mut accumulator = 0;
     let mut visited = HashSet::new();
-    loop {
+    while pc < program.len() as i32 {
         if visited.contains(&pc) {
-            return accumulator;
+            return (accumulator, false);
         }
         visited.insert(pc);
 
@@ -49,11 +49,31 @@ fn execute(program: &[Instruction]) -> i32 {
         }
         pc += 1;
     }
+    (accumulator, true)
+}
+
+fn execute_fixed_program(program: &[Instruction]) -> i32 {
+    for (i, &ins) in program.iter().enumerate() {
+        if let Some(inverted) = match ins {
+            Acc(_) => None,
+            Jmp(n) => Some(Nop(n)),
+            Nop(n) => Some(Jmp(n)),
+        } {
+            let mut attempt = program.to_vec();
+            attempt[i] = inverted;
+            let result = execute(&attempt);
+            if result.1 {
+                return result.0;
+            }
+        }
+    }
+    panic!()
 }
 
 fn main() {
     let program: Vec<Instruction> = io::stdin().lock().lines()
         .map(|line| line.unwrap().parse().unwrap())
         .collect();
-    println!("{}", execute(&program));
+    println!("{}", execute(&program).0);
+    println!("{}", execute_fixed_program(&program));
 }
