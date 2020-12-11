@@ -13,7 +13,7 @@ fn h(map: &Map) -> usize {
     map.len()
 }
 
-fn rule(map: &Map, x: i32, y: i32) -> u8 {
+fn rule1(map: &Map, x: i32, y: i32) -> u8 {
     let mut occupied_adjacent = 0;
     for &(nx, ny) in &[
         (x - 1, y - 1),
@@ -39,7 +39,45 @@ fn rule(map: &Map, x: i32, y: i32) -> u8 {
     }
 }
 
-fn simulate(map: &Map) -> Map {
+fn rule2(map: &Map, x: i32, y: i32) -> u8 {
+    let mut occupied_adjacent = 0;
+    for &(dx, dy) in &[
+        ( - 1,   - 1),
+        (   0,   - 1),
+        (   1,   - 1),
+        ( - 1,     0),
+        (   1,     0),
+        ( - 1,     1),
+        (   0,     1),
+        (   1,     1),
+    ] {
+        let mut nx = x;
+        let mut ny = y;
+        loop {
+            nx += dx;
+            ny += dy;
+            if let Some(&thing) = map.get(ny as usize).and_then(|row| row.get(nx as usize)) {
+                if thing == OCCUPIED {
+                    occupied_adjacent += 1;
+                    break;
+                } else if thing == EMPTY {
+                    // can't see further
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    match map[y as usize][x as usize] {
+        EMPTY if occupied_adjacent == 0 => OCCUPIED,
+        OCCUPIED if occupied_adjacent >= 5 => EMPTY,
+        x => x
+    }
+}
+
+fn simulate(map: &Map, rule: fn(&Map, i32, i32) -> u8) -> Map {
     let mut new_map = vec![vec![b'?'; w(map)]; h(map)];
     for y in 0..h(map) {
         for x in 0..w(map) {
@@ -63,13 +101,13 @@ fn dump(map: &Map) {
     println!();
 }
 
-fn stable_state_seated(mut map: Map) -> usize {
+fn stable_state_seated(mut map: Map, rule: fn(&Map, i32, i32) -> u8) -> usize {
     let mut next;
     loop {
         if false {
             dump(&map);
         }
-        next = simulate(&map);
+        next = simulate(&map, rule);
         if next == map {
             return num_seated(&map);
         }
@@ -81,5 +119,6 @@ fn main() {
     let map: Map = io::stdin().lock().lines()
         .map(|line| line.unwrap().into_bytes())
         .collect();
-    println!("{}", stable_state_seated(map));
+    println!("{}", stable_state_seated(map.clone(), rule1));
+    println!("{}", stable_state_seated(map, rule2));
 }
