@@ -74,11 +74,32 @@ fn execute(instructions: &[Instruction]) -> (i32, i32) {
     (x, y)
 }
 
+fn execute_with_wp(instructions: &[Instruction]) -> (i32, i32) {
+    let mut x = 0; // grows east
+    let mut y = 0; // grows north
+    let mut wp = (10, 1); // waypoint is relative to the ship
+    for step in instructions {
+        match step.action {
+            North => wp.1 += step.value,
+            South => wp.1 -= step.value,
+            East  => wp.0 += step.value,
+            West  => wp.0 -= step.value,
+            Left  => wp = left(wp, step.value),
+            Right => wp = right(wp, step.value),
+            Forward => { x += wp.0 * step.value; y += wp.1 * step.value; },
+        }
+    }
+    (x, y)
+}
+
 fn main() {
     let program: Vec<Instruction> = io::stdin().lock().lines()
         .map(|line| line.unwrap().parse().unwrap())
         .collect();
 
     let endpos = execute(&program);
+    println!("{:?} {}", endpos, endpos.0.abs() + endpos.1.abs());
+
+    let endpos = execute_with_wp(&program);
     println!("{:?} {}", endpos, endpos.0.abs() + endpos.1.abs());
 }
