@@ -94,6 +94,8 @@ fn resolve_field_mapping(tickets: &[Ticket], rules: &[Rule]) -> Vec<Option<usize
         }).collect()
     }).collect();
 
+    dump(&valid_per_rule);
+
     let mut field_per_rule = vec![None; rules.len()];
     while eliminate(&mut valid_per_rule, &mut field_per_rule) {
         println!("--");
@@ -113,10 +115,9 @@ fn departure_product(ticket: &Ticket, rules: &[Rule], mapping: &[Option<usize>])
         let field_ids = rules.iter().enumerate()
             .filter(|(_i, r)| r.name.starts_with("departure"))
             .map(|(i, _r)| mapping[i]);
-        // if these ids weren't found for some reason, we'd crash here. My input seems to have no
-        // good rules for field 15.
+        // if these ids weren't found for some reason, we'd crash here.
         field_ids
-            .map(|field_id| ticket[field_id.unwrap()] as u64)
+            .map(|field_id| ticket[field_id.expect("mapping is incomplete")] as u64)
             .fold(1, |prod, field| prod * field)
     }
 }
@@ -150,8 +151,9 @@ fn main() {
         x.split(',').map(|x| x.parse().unwrap()).collect::<Vec<_>>()
     }).collect();
     println!("{}", invalid_fields(&nearby_tickets, &rules));
-    let fixed_tickets: Vec<Ticket> = nearby_tickets.iter()
-        .filter(|&ticket| error_rate(ticket, &rules) == 0).cloned().collect();
+    let fixed_tickets: Vec<Ticket> = nearby_tickets.iter().filter(|&ticket| {
+        ticket.iter().all(|&field| validate_field(field, &rules))
+    }).cloned().collect();
     let mapping = resolve_field_mapping(&fixed_tickets, &rules);
     println!("{}", departure_product(&own_ticket, &rules, &mapping));
 }
