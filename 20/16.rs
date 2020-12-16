@@ -151,9 +151,9 @@ fn main() {
         x.split(',').map(|x| x.parse().unwrap()).collect::<Vec<_>>()
     }).collect();
     println!("{}", invalid_fields(&nearby_tickets, &rules));
-    let fixed_tickets: Vec<Ticket> = nearby_tickets.iter().filter(|&ticket| {
+    let fixed_tickets: Vec<Ticket> = nearby_tickets.into_iter().filter(|ticket| {
         ticket.iter().all(|&field| validate_field(field, &rules))
-    }).cloned().collect();
+    }).collect();
     let mapping = resolve_field_mapping(&fixed_tickets, &rules);
     println!("{}", departure_product(&own_ticket, &rules, &mapping));
 }
