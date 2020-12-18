@@ -1,6 +1,6 @@
 use std::io::{self, BufRead};
 
-fn calc(stream: &[u8]) -> (u64, usize) {
+fn calc(stream: &[u8], operator_precedence: bool) -> (u64, usize) {
     let mut pos = 0;
     // start with nothing plus something since the expr starts with a value and assumes things
     let mut result = 0u64;
@@ -24,6 +24,17 @@ fn calc(stream: &[u8]) -> (u64, usize) {
                 result = apply_op(result, current_op, current_num);
                 current_num = 0;
             },
+            b'*' if operator_precedence => {
+                if stream.get(pos + 1) != Some(&b' ') {
+                    panic!();
+                }
+                // with this simple trick (!) we'll have two operators of different precedence:
+                // recurse into computing the rest of this expression before applying this one.
+                let (subexpr, parselen) = calc(&stream[pos + 2..], operator_precedence);
+                // (note: the length again shouldn't matter like at the end of this function
+                // but keep it anyway for consistency)
+                return (result * subexpr, pos + 2 + parselen);
+            },
             b'+' | b'*' => {
                 current_op = ch;
                 pos += 1; // skip the trailing space because that's special for numbers only
@@ -33,7 +44,7 @@ fn calc(stream: &[u8]) -> (u64, usize) {
                 }
             },
             b'(' => {
-                let (subexpr, parselen) = calc(&stream[pos + 1..]);
+                let (subexpr, parselen) = calc(&stream[pos + 1..], operator_precedence);
                 // this isn't evaluated yet but interpreted as if a literal number was just found
                 current_num = subexpr;
                 pos += parselen;
@@ -60,7 +71,11 @@ fn calc(stream: &[u8]) -> (u64, usize) {
 }
 
 fn evaluate(expression: &str) -> u64 {
-    calc(&expression.as_bytes()).0
+    calc(&expression.as_bytes(), false).0
+}
+
+fn evaluate2(expression: &str) -> u64 {
+    calc(&expression.as_bytes(), true).0
 }
 
 fn main() {
@@ -68,4 +83,5 @@ fn main() {
         .map(|line| line.unwrap())
         .collect();
     println!("{}", expressions.iter().map(|e| evaluate(e)).sum::<u64>());
+    println!("{}", expressions.iter().map(|e| evaluate2(e)).sum::<u64>());
 }
