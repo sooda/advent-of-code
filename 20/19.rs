@@ -7,37 +7,43 @@ use regex::Regex;
 enum Rule {
     Single(char),
     Sequence(Vec<usize>),
-    SequenceChoice(Vec<usize>, Vec<usize>),
+    SequenceChoice(Vec<Vec<usize>>),
+    RepeatingSequence(Vec<usize>),
 }
 use Rule::*;
 
 fn build_sequence(rules: &[Rule], seq: &[usize], re_str: &mut [String]) -> String {
-    let mut out = Vec::new();
-    for &ri in seq {
+    seq.iter().map(|&ri| {
         build_regex(rules, ri, re_str);
         // can't ref re_str[i] because re_str is &mut. so many clones. :(
-        // appending to a string would be an option but it reallocates too
-        out.push(re_str[ri].clone());
-    }
-    out.join("")
+        // appending to a string with fold would be an option but it reallocates too
+        re_str[ri].clone()
+    }).collect::<Vec<String>>()
+    .join("")
 }
 
 fn build_regex(rules: &[Rule], current: usize, re_str: &mut [String]) {
     if re_str[current] != "" {
         return;
     }
-    match &rules[current] {
+    re_str[current] = match &rules[current] {
         Single(ch) => {
-            re_str[current] = ch.to_string();
+            ch.to_string()
         }
         Sequence(seq) => {
-            re_str[current] = build_sequence(rules, seq, re_str);
+            build_sequence(rules, seq, re_str)
         },
-        SequenceChoice(a, b) => {
-            let a_str = build_sequence(rules, a, re_str);
-            let b_str = build_sequence(rules, b, re_str);
-            re_str[current] = format!("(?:{}|{})", a_str, b_str);
+        SequenceChoice(seq_choices) => {
+            let red = seq_choices.iter()
+                .map(|seq| build_sequence(rules, seq, re_str))
+                .collect::<Vec<String>>()
+                .join("|");
+            String::from("(?:") + &red + ")"
         },
+        RepeatingSequence(seq) => {
+            let red = build_sequence(rules, seq, re_str);
+            String::from("(?:") + &red + ")+"
+        }
     }
 }
 
@@ -45,6 +51,38 @@ fn build_total_regex(rules: &[Rule]) -> Regex {
     let mut re_str = vec![String::new(); rules.len()];
     build_regex(rules, 0, &mut re_str);
     Regex::new(&(String::from("^") + &re_str[0] + "$")).unwrap()
+}
+
+fn fix_rules(rules: &mut [Rule]) {
+    // 8: 42
+    // 8: 42 | 42 8 == 8: 42+
+    if let Sequence(seq) = std::mem::replace(&mut rules[8], Single('x')) {
+        // could also unroll this loop but this is more fun
+        rules[8] = RepeatingSequence(seq);
+    } else {
+        panic!();
+    }
+    // 11: 42 31
+    // 11: 42 31 | 42 11 31 = 11: 42 31 | 42 42 31 31 | 42 42 42 31 31 31 | ...
+    if let Sequence(seq) = std::mem::replace(&mut rules[11], Single('x')) {
+        assert!(seq.len() == 2);
+        let first = seq[0];
+        let second = seq[1];
+        // no way it's going to loop more than this
+        let options = (1..=10).map(|i| {
+            let mut repetition = Vec::new();
+            for _ in 0..i {
+                repetition.push(first);
+            }
+            for _ in 0..i {
+                repetition.push(second);
+            }
+            repetition
+        }).collect::<Vec<Vec<usize>>>();
+        rules[11] = SequenceChoice(options);
+    } else {
+        panic!();
+    }
 }
 
 // regex was a mistake, just look at this
@@ -74,7 +112,7 @@ fn parse_rule(input: &str) -> (usize, Rule) {
         if let Some(n) = cap.get(5) {
             b.push(n.as_str().parse().unwrap());
         }
-        (id, SequenceChoice(a, b))
+        (id, SequenceChoice(vec![a, b]))
     } else {
         panic!("?? {}", input)
     }
@@ -94,6 +132,11 @@ fn main() {
         rules[i] = r;
     }
 
+    let regexed = build_total_regex(&rules);
+    let good_message_count = messages.iter().filter(|m| regexed.is_match(m)).count();
+    println!("{}", good_message_count);
+
+    fix_rules(&mut rules);
     let regexed = build_total_regex(&rules);
     let good_message_count = messages.iter().filter(|m| regexed.is_match(m)).count();
     println!("{}", good_message_count);
