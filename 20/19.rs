@@ -12,6 +12,56 @@ enum Rule {
 }
 use Rule::*;
 
+// this can eat a subsequence that's not necessarily any complete rule
+fn process_sequence<'a>(rules: &[Rule], sequence: &[usize], message: &'a [u8]) -> Vec<&'a [u8]> {
+    let after_first = do_match(rules, sequence[0], message);
+    if sequence.len() == 1 {
+        after_first
+    } else {
+        let mut out = Vec::new();
+        for next_message in after_first {
+            out.append(&mut process_sequence(rules, &sequence[1..], next_message));
+        }
+        out
+    }
+}
+
+fn process_sequencechoice<'a>(rules: &[Rule], sequences: &[Vec<usize>], message: &'a [u8]) -> Vec<&'a [u8]> {
+    let mut out = Vec::new();
+    for sequence in sequences {
+        out.append(&mut process_sequence(rules, sequence, message));
+    }
+    out
+}
+
+fn do_match<'a>(rules: &[Rule], current: usize, message: &'a [u8]) -> Vec<&'a [u8]> {
+    match &rules[current] {
+        &Single(ch) => {
+            if message.get(0).map(|&b| b as char) == Some(ch) {
+                vec![&message[1..]]
+            } else {
+                Vec::new()
+            }
+        }
+        Sequence(sequence) => {
+            process_sequence(rules, sequence, message)
+        },
+        SequenceChoice(sequences) => {
+            process_sequencechoice(rules, sequences, message)
+        },
+        RepeatingSequence(_) => {
+            // not used here, only for regexes. Could emulate with a self-reference pair though
+            panic!()
+        }
+    }
+}
+
+fn message_matches(rules: &[Rule], message: &str) -> bool {
+    let remaining_msgs = do_match(rules, 0, message.as_bytes());
+    // processed so much that the next submessage after this rule is nothing?
+    remaining_msgs.contains(&(&[] as &[u8]))
+}
+
 fn build_sequence(rules: &[Rule], seq: &[usize], re_str: &mut [String]) -> String {
     seq.iter().map(|&ri| {
         build_regex(rules, ri, re_str);
@@ -85,6 +135,28 @@ fn fix_rules(rules: &mut [Rule]) {
     }
 }
 
+// this wouldn't work with the regexer because of the self-reference
+fn fix_rules_native(rules: &mut [Rule]) {
+    // 8: 42
+    // 8: 42 | 42 8
+    if let Sequence(seq) = std::mem::replace(&mut rules[8], Single('x')) {
+        let mut rhs = seq.clone();
+        rhs.push(8);
+        rules[8] = SequenceChoice(vec![seq, rhs]);
+    } else {
+        panic!();
+    }
+    // 11: 42 31
+    // 11: 42 31 | 42 11 31
+    if let Sequence(seq) = std::mem::replace(&mut rules[11], Single('x')) {
+        let mut rhs = seq.clone();
+        rhs.insert(1, 11);
+        rules[11] = SequenceChoice(vec![seq, rhs]);
+    } else {
+        panic!();
+    }
+}
+
 // regex was a mistake, just look at this
 fn parse_rule(input: &str) -> (usize, Rule) {
     // (should build these only once instead of per each input but parsing input isn't the point)
@@ -132,12 +204,19 @@ fn main() {
         rules[i] = r;
     }
 
+    // now that they exist, do both algorithms to cross-check
     let regexed = build_total_regex(&rules);
     let good_message_count = messages.iter().filter(|m| regexed.is_match(m)).count();
     println!("{}", good_message_count);
+    let good_message_count = messages.iter().filter(|m| message_matches(&rules, m)).count();
+    println!("{}", good_message_count);
 
+    let mut rules_native = rules.clone();
     fix_rules(&mut rules);
+    fix_rules_native(&mut rules_native);
     let regexed = build_total_regex(&rules);
     let good_message_count = messages.iter().filter(|m| regexed.is_match(m)).count();
+    println!("{}", good_message_count);
+    let good_message_count = messages.iter().filter(|m| message_matches(&rules_native, m)).count();
     println!("{}", good_message_count);
 }
