@@ -4,6 +4,36 @@ use std::collections::HashMap;
 const IMAGEDIM: usize = 8;
 type Image = [u16; IMAGEDIM];
 
+// the bool encodes flip
+#[derive(Debug, Copy, Clone)]
+enum Orientation {
+    Up(bool),
+    Left(bool),
+    Down(bool),
+    Right(bool),
+}
+
+fn rot_orientation(ori: Orientation) -> Orientation {
+    use Orientation::*;
+    match ori {
+        Up(f)    => Left(f),
+        Left(f)  => Down(f),
+        Down(f)  => Right(f),
+        Right(f) => Up(f),
+    }
+}
+
+// flip along x axis: upside down
+fn flip_orientation(ori: Orientation) -> Orientation {
+    use Orientation::*;
+    match ori {
+        Up(f)    => Down(!f),
+        Left(f)  => Left(!f),
+        Down(f)  => Up(!f),
+        Right(f) => Right(!f),
+    }
+}
+
 // - top bottom left right, not sure why I didn't make this a struct
 // - bits run MSB left to LSB right, MSB top to LSB bottom
 // - could also store these in one big u64 for more fun rotations but that's too clever
@@ -12,7 +42,7 @@ type Borders = (u16, u16, u16, u16);
 struct Tile {
     name: u16,
     borders: Borders,
-    image: Image, // could also encode only the rotation though, this is fast enough for now
+    orientation: Orientation,
 }
 
 // dim doesn't change but it's handy to keep here
@@ -97,15 +127,6 @@ fn rotate_img(image: Image) -> Image {
     out
 }
 
-// rotate 90 degrees ccw, keep the bit order. could also store all ccw and do flips in comparisons
-fn rotate(tile: Tile) -> Tile {
-    Tile {
-        name: tile.name,
-        // top, bottom, left, right; bits left to right, top to bottom
-        borders: (tile.borders.3, tile.borders.2, flipbits(tile.borders.0), flipbits(tile.borders.1)),
-        image: rotate_img(tile.image),
-    }
-}
 fn flip_img(image: Image) -> Image {
     let mut out = [0; IMAGEDIM];
     for y in 0..IMAGEDIM {
@@ -114,12 +135,37 @@ fn flip_img(image: Image) -> Image {
     out
 }
 
+fn orient_image(original: Image, ori: Orientation) -> Image {
+    use Orientation::*;
+
+    match ori {
+        Up(false)    => original,
+        Left(false)  => rotate_img(original),
+        Down(false)  => rotate_img(rotate_img(original)),
+        Right(false) => rotate_img(rotate_img(rotate_img(original))),
+        Up(true)     => rotate_img(rotate_img(flip_img(original))),
+        Left(true)   => rotate_img(rotate_img(rotate_img(flip_img(original)))),
+        Down(true)   => flip_img(original),
+        Right(true)  => rotate_img(flip_img(original)),
+    }
+}
+
+// rotate 90 degrees ccw, keep the bit order. could also store all ccw and do flips in comparisons
+fn rotate(tile: Tile) -> Tile {
+    Tile {
+        name: tile.name,
+        // top, bottom, left, right; bits left to right, top to bottom
+        borders: (tile.borders.3, tile.borders.2, flipbits(tile.borders.0), flipbits(tile.borders.1)),
+        orientation: rot_orientation(tile.orientation),
+    }
+}
+
 // along x axis: top and bottom swap, left and right are mirrored
 fn flipx(tile: Tile) -> Tile {
     Tile {
         name: tile.name,
         borders: (tile.borders.1, tile.borders.0, flipbits(tile.borders.2), flipbits(tile.borders.3)),
-        image: flip_img(tile.image),
+        orientation: flip_orientation(tile.orientation),
     }
 }
 
@@ -290,12 +336,12 @@ fn water_roughness(sea: &Sea) -> usize {
     sea.iter().map(|waves| waves.count_ones() as usize).sum()
 }
 
-fn form_actual_image(/*tilemap: &HashMap<u16, &(Tile, Image)>,*/ state: &State) -> Sea {
+fn form_actual_image(tilemap: &HashMap<u16, &(Tile, Image)>, state: &State) -> Sea {
     let mut sea: Sea = vec![0; state.dim * IMAGEDIM];
     for y in 0..state.dim {
         for x in 0..state.dim {
-            let _name = state.at(x, y).unwrap().name;
-            let img = state.at(x, y).unwrap().image;//tilemap[&name].1;
+            let tile = state.at(x, y).unwrap();
+            let img = orient_image(tilemap[&tile.name].1, tile.orientation);
             for (rowi, &rowbits) in img.iter().enumerate() {
                 sea[y * IMAGEDIM + rowi] |= (rowbits as u128) << ((state.dim - 1 - x) * IMAGEDIM);
             }
@@ -326,7 +372,7 @@ fn parse_tile(input: &[String]) -> (Tile, Image) {
             (bits << 1) | ((ch == b'#') as u16)
         });
     }
-    (Tile { name, borders, image }, image.clone())
+    (Tile { name, borders, orientation: Orientation::Up(false) }, image.clone())
 }
 
 // note: my input has 144 tiles - that would be 12*12, or 9*16, or 8*18, or 6*24, etc. but the
@@ -364,13 +410,11 @@ fn main() {
     ];
     println!("{}", corners[0] * corners[1] * corners[2] * corners[3]);
 
-    if false {
-        // indexed by name for easier lookup
-        let _tilemap: HashMap<u16, &(Tile, Image)> = tiles.iter().map(|ti| {
-            (ti.0.name, ti)
-        }).collect();
-    }
+    // indexed by name for easier lookup
+    let tilemap: HashMap<u16, &(Tile, Image)> = tiles.iter().map(|ti| {
+        (ti.0.name, ti)
+    }).collect();
 
-    let sea = form_actual_image(/*&tilemap,*/ &state);
+    let sea = form_actual_image(&tilemap, &state);
     println!("{}", water_roughness(&sea));
 }
