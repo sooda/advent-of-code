@@ -7,16 +7,30 @@ struct Food {
     allergens: HashSet<String>,
 }
 
+// ugh, I want a HashMap::remove that takes a closure and doesn't need to hash because we already
+// have the entry from the iteration
+fn remove_by<K, V, P>(hashmap: &mut HashMap<K, V>, predicate: P) -> Option<(K, V)>
+where
+    K: Clone + Eq + std::hash::Hash,
+    V: Clone,
+    P: FnMut(&(&K, &V)) -> bool
+{
+    let entry: Option<_> = hashmap.iter().find(predicate);
+    // throw away the refs because hashmap will get modified
+    let cloned_key = entry.map(|(k, _v)| k.clone());
+    // must clone k even though remove_entry takes just a ref because map will get modified :( most
+    // likely it'll be just hashed, maybe compared and discarded before the actual removal, so this
+    // shouldn't be necessary
+    cloned_key.map(|k| hashmap.remove_entry(&k).expect("just got this from entry??"))
+}
+
 // which allergen is which ingredient
 fn final_mapping(mut plausible_ingredients: HashMap<String, HashSet<String>>) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let unique = |(_k, v): &(&String, &HashSet<String>)| v.len() == 1;
-    let valued_k = |(k, _v): (&String, &HashSet<String>)| k.clone();
 
-    while let Some(allergen) = plausible_ingredients.iter().find(unique).map(valued_k) {
-        // ugh, I want a HashMap::remove that takes a closure and doesn't need to hash because we
-        // already have the entry from the iteration
-        let ingredient = plausible_ingredients.remove(&allergen).unwrap().drain().next().unwrap();
+    while let Some((allergen, mut ingrs)) = remove_by(&mut plausible_ingredients, unique) {
+        let ingredient = ingrs.drain().next().unwrap();
         for (_alle, ings) in plausible_ingredients.iter_mut() {
             ings.remove(&ingredient);
         }
