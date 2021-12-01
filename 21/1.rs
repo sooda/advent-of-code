@@ -1,17 +1,18 @@
 use std::io::{self, BufRead};
 
-fn increase_count(depths: &[u32]) -> usize {
-    depths.iter().zip(depths.iter().skip(1))
+fn deepenings<I, V>(it: I) -> usize
+where I: Iterator<Item = V> + Clone, V: std::cmp::PartialOrd {
+    it.clone().zip(it.skip(1))
         .filter(|(prev, next)| next > prev)
         .count()
 }
 
+fn increase_count(depths: &[u32]) -> usize {
+    deepenings(depths.iter())
+}
+
 fn increase_count_windowed(depths: &[u32]) -> usize {
-    depths.windows(3).zip(depths.windows(3).skip(1))
-        .filter(|(prev, next)| {
-            next[0] + next[1] + next[2] > prev[0] + prev[1] + prev[2]
-        })
-        .count()
+    deepenings(depths.windows(3).map(|w| w[0] + w[1] + w[2]))
 }
 
 fn main() {
