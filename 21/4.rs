@@ -1,5 +1,6 @@
 use std::io::{self, BufRead};
 
+#[derive(Clone)]
 struct Board {
     numbers: [u32; 5 * 5],
     marked: [bool; 5 * 5],
@@ -55,6 +56,21 @@ fn winning_score(boards: &mut [Board], drawn_numbers: &[u32]) -> u32 {
     panic!("nobody won");
 }
 
+fn squid_score(boards: &mut [Board], drawn_numbers: &[u32]) -> u32 {
+    let mut won_boards: Vec<bool> = boards.iter().map(|_b| false).collect();
+    for &num in drawn_numbers {
+        for (i, board) in boards.iter_mut().enumerate() {
+            if let Some(score) = board.play_round(num) {
+                won_boards[i] = true;
+                if won_boards.iter().all(|&w| w) {
+                    return score;
+                }
+            }
+        }
+    }
+    panic!("nobody won");
+}
+
 fn parse_board(board_spec: &[String]) -> Board {
     let mut numbers = [0; 5 * 5];
     let input = board_spec.iter().flat_map(
@@ -71,5 +87,6 @@ fn main() {
     let mut boards: Vec<Board> = lines[1..].chunks(6)
         .map(parse_board)
         .collect();
-    println!("{}", winning_score(&mut boards, &drawn_numbers));
+    println!("{}", winning_score(&mut boards.clone(), &drawn_numbers));
+    println!("{}", squid_score(&mut boards, &drawn_numbers));
 }
