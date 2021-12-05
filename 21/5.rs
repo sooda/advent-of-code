@@ -3,10 +3,10 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 struct Line {
-    x0: u32,
-    y0: u32,
-    x1: u32,
-    y1: u32,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
 }
 
 fn line_horiz_or_vert(line: &&Line) -> bool {
@@ -14,13 +14,30 @@ fn line_horiz_or_vert(line: &&Line) -> bool {
 }
 
 fn dangerous_sum(lines: &[Line]) -> usize {
-    let mut map = HashMap::<(u32, u32), usize>::new();
+    let mut map = HashMap::<(i32, i32), usize>::new();
     for line in lines.iter().filter(line_horiz_or_vert) {
         // one of these iterates only once
-        for x in line.x0..=line.x1 {
-            for y in line.y0..=line.y1 {
+        for x in line.x0.min(line.x1)..=line.x0.max(line.x1) {
+            for y in line.y0.min(line.y1)..=line.y0.max(line.y1) {
                 *map.entry((x, y)).or_insert(0) += 1;
             }
+        }
+    }
+    map.values().filter(|&&n| n >= 2).count()
+}
+
+fn full_dangerous_sum(lines: &[Line]) -> usize {
+    let mut map = HashMap::<(i32, i32), usize>::new();
+    for line in lines.iter() {
+        let dx = line.x1 - line.x0;
+        let dy = line.y1 - line.y0;
+        let n = dx.abs().max(dy.abs());
+        let mut x = line.x0;
+        let mut y = line.y0;
+        for _ in 0..=n {
+            *map.entry((x, y)).or_insert(0) += 1;
+            x += dx.signum();
+            y += dy.signum();
         }
     }
     map.values().filter(|&&n| n >= 2).count()
@@ -30,11 +47,11 @@ fn parse_line(input: &str) -> Line {
     let mut sp = input.split(" -> ");
     let mut asp = sp.next().unwrap().split(',');
     let mut bsp = sp.next().unwrap().split(',');
-    let x0: u32 = asp.next().unwrap().parse().unwrap();
-    let y0: u32 = asp.next().unwrap().parse().unwrap();
-    let x1: u32 = bsp.next().unwrap().parse().unwrap();
-    let y1: u32 = bsp.next().unwrap().parse().unwrap();
-    Line { x0: x0.min(x1), y0: y0.min(y1), x1: x0.max(x1), y1: y0.max(y1) }
+    let x0: i32 = asp.next().unwrap().parse().unwrap();
+    let y0: i32 = asp.next().unwrap().parse().unwrap();
+    let x1: i32 = bsp.next().unwrap().parse().unwrap();
+    let y1: i32 = bsp.next().unwrap().parse().unwrap();
+    Line { x0, y0, x1, y1 }
 }
 
 fn main() {
@@ -42,4 +59,5 @@ fn main() {
         .map(|input| parse_line(&input.unwrap()))
         .collect();
     println!("{}", dangerous_sum(&lines));
+    println!("{}", full_dangerous_sum(&lines));
 }
