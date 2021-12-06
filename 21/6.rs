@@ -23,4 +23,5 @@ fn main() {
         .map(|n| n.parse().unwrap())
         .collect();
     println!("{}", fish_population(&input, 80));
+    println!("{}", fish_population(&input, 256));
 }
