@@ -1,20 +1,20 @@
 use std::io::{self, BufRead};
 
 fn fish_population(school: &[u64], sim_length: usize) -> u64 {
-    let mut current = [0u64; 9]; // count per age
+    let mut fish = [0u64; 9]; // count per age
+    let mut _fish2 = [0u64; 9];
     for &age in school {
-        current[age as usize] += 1;
+        fish[age as usize] += 1;
     }
-    for _ in 0..sim_length {
-        let mut next = [0u64; 9];
-        for (i, &n) in current.iter().enumerate().skip(1) {
-            next[i - 1] = n;
-        }
-        next[8] = current[0];
-        next[6] += current[0];
-        current = next;
+
+    _fish2 = fish;
+    for start_pos in 0..sim_length {
+        fish.rotate_left(1);
+        fish[6] += fish[8];
+        _fish2[(7 + start_pos) % 9] += _fish2[start_pos % 9];
     }
-    current.iter().sum()
+    assert!(fish.iter().sum::<u64>() == _fish2.iter().sum::<u64>());
+    fish.iter().sum()
 }
 
 fn main() {
