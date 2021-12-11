@@ -45,20 +45,38 @@ fn visualize(octos: &[Vec<u8>]) {
     println!();
 }
 
-fn total_flashes(octos: &mut [Vec<u8>], iterations: usize) -> usize {
+fn total_flashes(octos: &mut [Vec<u8>], iterations: usize) -> (usize, usize) {
     println!("Before any steps:");
     visualize(octos);
-    (0..iterations).fold(0, |flash_count, step| {
-        let n = flash_count + iterate(octos);
-        println!("After step {}:", 1 + step);
+    let mut first_sync = None;
+    let mut requested_flash_count = 0;
+    for step in 1.. {
+        let these_flashes = iterate(octos);
+        if step <= iterations {
+            requested_flash_count += these_flashes;
+        }
+
+        println!("After step {}:", step);
         visualize(octos);
-        n
-    })
+
+        let sync_attempt = octos[0][0];
+        let syncing = octos.iter()
+            .flat_map(|row| row.iter().copied())
+            .all(|octo| octo == sync_attempt);
+
+        if first_sync.is_none() && syncing {
+            first_sync = Some(step);
+        }
+        if step >= iterations && first_sync.is_some() {
+            return (requested_flash_count, first_sync.unwrap());
+        }
+    }
+    unreachable!()
 }
 
 fn main() {
     let mut octos: Vec<Vec<u8>> = io::stdin().lock().lines()
         .map(|line| line.unwrap().bytes().map(|b| b - b'0').collect())
         .collect();
-    println!("{}", total_flashes(&mut octos, 100));
+    println!("{:?}", total_flashes(&mut octos, 100));
 }
