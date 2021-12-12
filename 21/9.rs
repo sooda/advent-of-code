@@ -2,28 +2,29 @@ use std::io::{self, BufRead};
 
 type Map = Vec<Vec<u32>>;
 
+fn low_point(map: &Map, x: usize, y: usize) -> bool {
+    let current = map[y][x];
+    if x > 0 && current >= map[y][x - 1] {
+        return false;
+    }
+    if x < map[y].len() - 1 && current >= map[y][x + 1] {
+        return false;
+    }
+    if y > 0 && current >= map[y - 1][x] {
+        return false;
+    }
+    if y < map.len() - 1 && current >= map[y + 1][x] {
+        return false;
+    }
+    true
+}
+
 fn low_point_risk_level(map: &Map) -> u32 {
     let mut total_risk = 0;
     for y in 0..map.len() {
-        let row = &map[y];
-        for x in 0..row.len() {
-            let mut low = true;
-            let current = row[x];
-            if x > 0 {
-                low = low && current < row[x - 1];
-            }
-            if x < row.len() - 1 {
-                low = low && current < row[x + 1];
-            }
-            if y > 0 {
-                low = low && current < map[y - 1][x];
-            }
-            if y < map.len() - 1 {
-                low = low && current < map[y + 1][x];
-            }
-            let risk_level = current + 1;
-            if low {
-                total_risk += risk_level;
+        for x in 0..map[y].len() {
+            if low_point(map, x, y) {
+                total_risk += map[y][x] + 1;
             }
         }
     }
@@ -31,14 +32,12 @@ fn low_point_risk_level(map: &Map) -> u32 {
 }
 
 fn dfs_basin(map: &Map, visited: &mut Vec<Vec<bool>>, x: usize, y: usize) -> u32 {
-    if visited[y][x] {
-        return 0;
-    }
-    if map[y][x] == 9 {
+    if visited[y][x] || map[y][x] == 9 {
         return 0;
     }
     visited[y][x] = true;
     let mut tot = 0;
+    // isize would again be nicer because x-1 etc. could be in an array. ugh.
     if x > 0 {
         tot += dfs_basin(map, visited, x - 1, y);
     }
@@ -62,26 +61,9 @@ fn basin_size(map: &Map, x: usize, y: usize) -> u32 {
 fn basin_product(map: &Map) -> u32 {
     let mut big_basin = Vec::new();
     for y in 0..map.len() {
-        let row = &map[y];
-        for x in 0..row.len() {
-            let mut low = true;
-            let current = row[x];
-            if x > 0 {
-                low = low && current < row[x - 1];
-            }
-            if x < row.len() - 1 {
-                low = low && current < row[x + 1];
-            }
-            if y > 0 {
-                low = low && current < map[y - 1][x];
-            }
-            if y < map.len() - 1 {
-                low = low && current < map[y + 1][x];
-            }
-            if low {
-                let size = basin_size(map, x, y);
-                //println!("size at {} {} = {}", x, y, size);
-                big_basin.push(size);
+        for x in 0..map[y].len() {
+            if low_point(map, x, y) {
+                big_basin.push(basin_size(map, x, y));
             }
         }
     }
