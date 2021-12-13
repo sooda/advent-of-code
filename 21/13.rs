@@ -29,6 +29,31 @@ fn dots_after_one_fold(mut dots: HashSet<(i32, i32)>, folds: &[(bool, i32)]) -> 
     dots.len()
 }
 
+fn display(dots: HashSet<(i32, i32)>) {
+    let minx = dots.iter().map(|&d| d.0).min().unwrap();
+    let maxx = dots.iter().map(|&d| d.0).max().unwrap();
+    let miny = dots.iter().map(|&d| d.1).min().unwrap();
+    let maxy = dots.iter().map(|&d| d.1).max().unwrap();
+    for y in miny..=maxy {
+        for x in minx..=maxx {
+            let c = if dots.contains(&(x, y)) {
+                '#'
+            } else {
+                ' '
+            };
+            print!("{}", c);
+        }
+        println!();
+    }
+}
+
+fn fold_fully_and_display(mut dots: HashSet<(i32, i32)>, folds: &[(bool, i32)]) {
+    for &f in folds {
+        fold(&mut dots, f);
+    }
+    display(dots);
+}
+
 fn parse_origami(paper: &[String]) -> (HashSet<(i32, i32)>, Vec<(bool, i32)>) {
     let mut sp = paper.split(|l| l == "");
     let dots = sp.next().unwrap().iter().map(|s| {
@@ -49,5 +74,6 @@ fn main() {
         .map(|line| line.unwrap())
         .collect();
     let (dots, folds) = parse_origami(&paper);
-    println!("{:?}", dots_after_one_fold(dots, &folds));
+    println!("{:?}", dots_after_one_fold(dots.clone(), &folds));
+    fold_fully_and_display(dots, &folds);
 }
