@@ -2,18 +2,25 @@
 use std::io::{self, BufRead};
 use std::collections::HashSet;
 
+fn generic_fold<F, T>(dots: &mut HashSet<(i32, i32)>, flip_predicate: F, transform: T)
+where
+F: FnMut(&(i32, i32)) -> bool,
+T: FnMut(&(i32, i32)) -> (i32, i32)
+{
+    let moving_part: HashSet<_> = dots.drain_filter(flip_predicate).collect();
+    dots.extend(moving_part.iter().map(transform));
+}
+
 fn fold_along_x(dots: &mut HashSet<(i32, i32)>, flip_coord: i32) {
-    let moving_part: HashSet<_> = dots.drain_filter(|d| d.0 >= flip_coord).collect();
-    for d in moving_part {
-        dots.insert((flip_coord - (d.0 - flip_coord), d.1));
-    }
+    generic_fold(dots,
+                 |&(x, _)| x >= flip_coord,
+                 |&(x, y)| (flip_coord - (x - flip_coord), y));
 }
 
 fn fold_along_y(dots: &mut HashSet<(i32, i32)>, flip_coord: i32) {
-    let moving_part: HashSet<_> = dots.drain_filter(|d| d.1 >= flip_coord).collect();
-    for d in moving_part {
-        dots.insert((d.0, flip_coord - (d.1 - flip_coord)));
-    }
+    generic_fold(dots,
+                 |&(_, y)| y >= flip_coord,
+                 |&(x, y)| (x, flip_coord - (y - flip_coord)));
 }
 
 fn fold(dots: &mut HashSet<(i32, i32)>, fold: (bool, i32)) {
