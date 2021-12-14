@@ -22,10 +22,49 @@ fn result_quantity_code(mut polymer: Vec<char>, rules: &HashMap<(char, char), ch
         *map.entry(ch).or_insert(0) += 1;
         map
     });
-    let mut counts: Vec<usize> = count_map.values().copied().collect();
-    counts.sort_unstable();
 
-    counts.last().unwrap() - counts.first().unwrap()
+    count_map.values().max().unwrap() - count_map.values().min().unwrap()
+}
+
+fn expanse(pair_counts: HashMap<(char, char), usize>, rules: &HashMap<(char, char), char>) -> HashMap<(char, char), usize> {
+    let mut output = HashMap::new();
+    for (pair, count) in pair_counts.into_iter() {
+        if let Some(&polymerization) = rules.get(&pair) {
+            // NN -> NC + CB
+            *output.entry((pair.0, polymerization)).or_insert(0) += count;
+            *output.entry((polymerization, pair.1)).or_insert(0) += count;
+        } else {
+            // just NN -> NN
+            *output.entry(pair).or_insert(0) += count;
+        }
+    }
+    output
+}
+
+fn result_quantity_code_fast(polymer: Vec<char>, rules: &HashMap<(char, char), char>, repetitions: usize) -> usize {
+    let mut pair_counts: HashMap<(char, char), usize> = polymer
+        .iter().copied()
+        .zip(polymer.iter().copied().skip(1))
+        .fold(HashMap::new(), |mut map, pair| {
+            *map.entry(pair).or_insert(0) += 1;
+            map
+        });
+
+    for _ in 0..repetitions {
+        pair_counts = expanse(pair_counts, rules);
+    }
+
+    let mut count_map = pair_counts.iter().fold(HashMap::new(), |mut map, ((a, b), count)| {
+        *map.entry(a).or_insert(0) += count;
+        *map.entry(b).or_insert(0) += count;
+        map
+    });
+    // NCNBCHB would be NC, CN, NB, BC, CH, HB
+    // each middle element gets counted twice, so compensate the ends (that exist at this point) to be consistent
+    *count_map.get_mut(polymer.first().unwrap()).unwrap() += 1;
+    *count_map.get_mut(polymer.last().unwrap()).unwrap() += 1;
+
+    (count_map.values().max().unwrap() - count_map.values().min().unwrap()) / 2
 }
 
 fn parse_poly(input: &[String]) -> (Vec<char>, HashMap<(char, char), char>) {
@@ -46,5 +85,7 @@ fn main() {
         .map(|line| line.unwrap())
         .collect();
     let (template, rules) = parse_poly(&input);
-    println!("{:?}", result_quantity_code(template, &rules, 10));
+    println!("{:?}", result_quantity_code(template.clone(), &rules, 10));
+    println!("{:?}", result_quantity_code_fast(template.clone(), &rules, 10));
+    println!("{:?}", result_quantity_code_fast(template, &rules, 40));
 }
