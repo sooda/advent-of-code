@@ -30,6 +30,32 @@ fn highest_shot(area: (i32, i32, i32, i32)) -> i32 {
     highscore.1
 }
 
+fn iterate_full(xvel0: i32, yvel0: i32, area: (i32, i32, i32, i32)) -> bool {
+    let (x0, x1, y0, y1) = area;
+    let mut x = 0;
+    let mut y = 0;
+    let mut xvel = xvel0;
+    let mut yvel = yvel0;
+    while y >= y0 {
+        x += xvel;
+        y += yvel;
+        xvel += (0 - xvel).signum();
+        yvel -= 1;
+        if y >= y0 && y <= y1 && x >= x0 && x <= x1 {
+            return true;
+        }
+    }
+    false
+}
+
+fn shot_count(area: (i32, i32, i32, i32)) -> usize {
+    let (_, x1, y0, _) = area;
+    (y0..(2 * -y0)).flat_map(|yvel| {
+        (1..=x1).map(move |xvel| iterate_full(xvel, yvel, area))
+    })
+    .filter(|&success| success).count()
+}
+
 fn parse_target_area(line: &str) -> (i32, i32, i32, i32) {
     // "target area: x=20..30, y=-10..-5"
     let mut lsp = line.split(", y=");
@@ -47,4 +73,5 @@ fn main() {
     let target_area = parse_target_area(&io::stdin().lock().lines()
         .next().unwrap().unwrap());
     println!("{}", highest_shot(target_area));
+    println!("{}", shot_count(target_area));
 }
