@@ -179,6 +179,14 @@ fn sum_magnitude(numbers: &[Number]) -> i32 {
     magnitude(&sum_numbers(numbers))
 }
 
+fn largest_pair_sum_magnitude(numbers: &[Number]) -> i32 {
+    numbers.iter().flat_map(|a| {
+        numbers.iter().filter(move |&b| b != a).map(move |b| {
+            magnitude(&snailsum(a.clone(), b.clone()))
+        })
+    }).max().unwrap()
+}
+
 fn parse_element(chs: &mut Chars) -> Number {
     match chs.next().unwrap() {
         '[' => parse_pair(chs),
@@ -231,4 +239,5 @@ fn main() {
         .map(|line| parse_whole_number(&line.unwrap()))
         .collect();
     println!("{:?}", sum_magnitude(&numbers));
+    println!("{:?}", largest_pair_sum_magnitude(&numbers));
 }
