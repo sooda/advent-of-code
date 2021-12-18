@@ -3,12 +3,16 @@ use std::str::Chars;
 
 const DEBUGTRACE: bool = false;
 
-#[derive(PartialEq,Debug,Clone)]
+#[derive(PartialEq, Debug, Clone)]
 enum Number {
     Regular(i32),
     Pair(Box<Number>, Box<Number>)
 }
 use Number::*;
+
+fn make_pair(a: Number, b: Number) -> Number {
+    Pair(Box::new(a), Box::new(b))
+}
 
 fn magnitude(num: &Number) -> i32 {
     match num {
@@ -68,7 +72,7 @@ fn explosion(mut num: Number) -> Number {
 fn execute_split(value: i32) -> Number {
     let l = value / 2;
     let r = (value + 1) / 2;
-    Pair(Box::new(Regular(l)), Box::new(Regular(r)))
+    make_pair(Regular(l), Regular(r))
 }
 
 fn try_split(num: &mut Number) -> bool {
@@ -100,18 +104,8 @@ fn split(mut num: Number) -> Number {
 
 fn do_stringify(num: &Number, v: &mut Vec::<char>) {
     match num {
-        &Regular(mut x) => {
-            if x == 0 {
-                v.push('0');
-            } else {
-                while (x % 1000) != 0 {
-                    let digit = (x / 100) % 10;
-                    x *= 10;
-                    if digit != 0 {
-                        v.push((b'0' + (digit as u8)) as char);
-                    }
-                }
-            }
+        &Regular(x) => {
+            v.extend(x.to_string().chars());
         }
         Pair(l, r) => {
             v.push('[');
@@ -167,7 +161,7 @@ fn reduce(mut num: Number) -> Number {
 }
 
 fn snailsum(a: Number, b: Number) -> Number {
-    reduce(Pair(Box::new(a), Box::new(b)))
+    reduce(make_pair(a, b))
 }
 
 fn sum_numbers(numbers: &[Number]) -> Number {
@@ -202,14 +196,11 @@ fn parse_pair(chs: &mut Chars) -> Number {
     let right = parse_element(chs);
     let close = chs.next().unwrap();
     assert_eq!(close, ']');
-    Pair(Box::new(left), Box::new(right))
+    make_pair(left, right)
 }
 
 fn parse_whole_number(line: &str) -> Number {
-    let mut chs = line.chars();
-    let open = chs.next().unwrap();
-    assert_eq!(open, '[');
-    parse_pair(&mut chs)
+    parse_element(&mut line.chars())
 }
 
 fn main() {
