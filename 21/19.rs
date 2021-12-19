@@ -11,6 +11,10 @@ fn cadd(a: Coord, b: Coord) -> Coord {
     (a.0 + b.0, a.1 + b.1, a.2 + b.2)
 }
 
+fn manhattan_norm(a: Coord) -> i32 {
+    a.0.abs() + a.1.abs() + a.2.abs()
+}
+
 // a lot of technically possible combinations in total, but mirroring is not allowed
 fn orientation_permutations(report: &HashSet<Coord>) -> Vec<HashSet<Coord>> {
     // rotation: ccw across z
@@ -65,7 +69,7 @@ fn relative_transform(report: &HashSet<Coord>, origin: Coord) -> HashSet<Coord> 
     report.iter().map(|&c| csub(c, origin)).collect()
 }
 
-fn try_match(arep: &HashSet<Coord>, brep: &HashSet<Coord>) -> Option<HashSet<Coord>> {
+fn try_match(arep: &HashSet<Coord>, brep: &HashSet<Coord>) -> Option<(Coord, HashSet<Coord>)> {
     // TODO: less repetition, cache all the transforms and then intersect all
     let breps = orientation_permutations(brep);
     for &attempted_origin_a in arep {
@@ -75,9 +79,10 @@ fn try_match(arep: &HashSet<Coord>, brep: &HashSet<Coord>) -> Option<HashSet<Coo
                 let brep_transformed = relative_transform(&brep, attempted_origin_b);
                 let shared_pts = arep_transformed.intersection(&brep_transformed).count();
                 if shared_pts >= 12 {
+                    let coord_sys_shift = csub(attempted_origin_a, attempted_origin_b);
                     let result = brep_transformed.into_iter().map(|p| cadd(attempted_origin_a, p)).collect();
-                    println!("{} pts. b must be {:?} btw", shared_pts, csub(attempted_origin_b, attempted_origin_a));
-                    return Some(result);
+                    println!("{} pts. b must be {:?} btw", shared_pts, coord_sys_shift);
+                    return Some((coord_sys_shift, result));
                 }
             }
         }
@@ -85,7 +90,7 @@ fn try_match(arep: &HashSet<Coord>, brep: &HashSet<Coord>) -> Option<HashSet<Coo
     None
 }
 
-fn find_match(master: &HashSet<Coord>, reports: &Vec<HashSet<Coord>>) -> Option<(usize, HashSet<Coord>)> {
+fn find_match(master: &HashSet<Coord>, reports: &Vec<HashSet<Coord>>) -> Option<(usize, (Coord, HashSet<Coord>))> {
     reports.iter()
         .enumerate()
         .filter_map(|(i, report)| {
@@ -94,7 +99,7 @@ fn find_match(master: &HashSet<Coord>, reports: &Vec<HashSet<Coord>>) -> Option<
         .next()
 }
 
-fn apply_match(master: &HashSet<Coord>, reports: &mut Vec<HashSet<Coord>>) -> Option<HashSet<Coord>> {
+fn apply_match(master: &HashSet<Coord>, reports: &mut Vec<HashSet<Coord>>) -> Option<(Coord, HashSet<Coord>)> {
     if let Some((i, found)) = find_match(master, reports) {
         reports.remove(i);
         Some(found)
@@ -103,13 +108,19 @@ fn apply_match(master: &HashSet<Coord>, reports: &mut Vec<HashSet<Coord>>) -> Op
     }
 }
 
-fn total_beacon_count(mut reports: Vec<HashSet<Coord>>) -> usize {
+fn total_beacon_count_and_ocean_span(mut reports: Vec<HashSet<Coord>>) -> (usize, i32) {
     let mut master_reference = reports.remove(0);
-    while let Some(found) = apply_match(&master_reference, &mut reports) {
-        master_reference.extend(found.into_iter());
+    let mut positions = vec![(0, 0, 0)];
+    while let Some((shift, found_pts)) = apply_match(&master_reference, &mut reports) {
+        positions.push(shift);
+        master_reference.extend(found_pts.into_iter());
     }
     assert!(reports.is_empty());
-    master_reference.len()
+    let ocean_span = positions.iter().flat_map(|&apos| {
+        positions.iter().map(move |&bpos| manhattan_norm(csub(apos, bpos)))
+    }).max().unwrap();
+
+    (master_reference.len(), ocean_span)
 }
 
 fn parse_reports(reports: &[String]) -> Vec<HashSet<Coord>> {
@@ -137,5 +148,5 @@ fn main() {
         .map(|line| line.unwrap())
         .collect();
     let reports = parse_reports(&raw_reports);
-    println!("{:?}", total_beacon_count(reports));
+    println!("{:?}", total_beacon_count_and_ocean_span(reports));
 }
