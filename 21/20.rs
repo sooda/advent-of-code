@@ -101,5 +101,6 @@ fn main() {
         .map(|line| line.unwrap())
         .collect();
     let (algo, image) = parse_spec(&spec);
-    println!("{:?}", pixels_after(image, &algo, 2));
+    println!("{:?}", pixels_after(image.clone(), &algo, 2));
+    println!("{:?}", pixels_after(image, &algo, 50));
 }
