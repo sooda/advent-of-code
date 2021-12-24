@@ -3,17 +3,17 @@ use std::collections::{HashSet, HashMap, BinaryHeap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct Node {
-    x: i32,
-    y: i32,
+    x: i8,
+    y: i8,
     id: char,
 }
 
 impl Node {
-    fn new(x: i32, y: i32, id: u8) -> Node {
+    fn new(x: i8, y: i8, id: u8) -> Node {
         Node { x, y, id: id as char }
     }
     fn walk_distance(&self, other: Node) -> i32 {
-        (self.x - other.x).abs() + (self.y - other.y).abs()
+        (self.x - other.x).abs() as i32 + (self.y - other.y).abs() as i32
     }
 }
 
@@ -38,7 +38,7 @@ impl Graph {
         self.edges.get(node).unwrap_or(&self.empty)
     }
 
-    fn node_at(&self, pos: (i32, i32)) -> Node {
+    fn node_at(&self, pos: (i8, i8)) -> Node {
         *self.nodes.iter()
             .find(|n| n.x == pos.0 && n.y == pos.1)
             .unwrap()
@@ -66,7 +66,7 @@ fn empty_map() -> Graph {
     let nodes = (0..4)
         .flat_map(|y| (0..13).map(move |x| (x, y, map[y * 13 + x])))
         .filter(|&(_x, _y, id)| id >= b'a' && id <= b'z')
-        .map(|(x, y, id)| Node::new(x as i32, y as i32, id))
+        .map(|(x, y, id)| Node::new(x as i8, y as i8, id))
         .collect::<Vec::<_>>();
     let n_by_id = |id| *nodes.iter().find(|n| n.id == id).unwrap();
     let route = [
@@ -75,6 +75,38 @@ fn empty_map() -> Graph {
         "gm", "hm", "mq",
         "hn", "in", "nr",
         "io", "jo", "os"
+    ];
+    let edges: Vec<_> = route.iter()
+        .map(|pair| pair.as_bytes())
+        .map(|bs| (n_by_id(bs[0] as char), n_by_id(bs[1] as char)))
+        .collect();
+    Graph::new(nodes, edges)
+}
+
+fn empty_map2() -> Graph {
+    // 13 by 6
+    let map = "\
+        #############\
+        #ef.g.h.i.jk#\
+        ###l#m#n#o###\
+        ###p#q#r#s###\
+        ###t#u#v#w###\
+        ###x#y#z#{###".as_bytes();
+    // note: "{" comes after "z" in ascii
+    let nodes = (0..6)
+        .flat_map(|y| (0..13).map(move |x| (x, y, map[y * 13 + x])))
+        .filter(|&(_x, _y, id)| (id >= b'a' && id <= b'{'))
+        .map(|(x, y, id)| Node::new(x as i8, y as i8, id))
+        .collect::<Vec::<_>>();
+    let n_by_id = |id| { *nodes.iter().find(|n| n.id == id).unwrap() };
+    let route = [
+        "ef", "fg", "gh", "hi", "ij", "jk",
+        "fl", "gl", "lp",
+        "gm", "hm", "mq",
+        "hn", "in", "nr",
+        "io", "jo", "os",
+        "pt", "qu", "rv", "sw",
+        "tx", "uy", "vz", "w{"
     ];
     let edges: Vec<_> = route.iter()
         .map(|pair| pair.as_bytes())
@@ -97,7 +129,7 @@ fn step_energy(pod_name: char) -> Cost {
     }
 }
 
-fn homeplace(name: char) -> i32 {
+fn homeplace(name: char) -> i8 {
     match name {
          'A' => 3,
          'B' => 5,
@@ -107,6 +139,9 @@ fn homeplace(name: char) -> i32 {
     }
 }
 
+// this might be dumb, storing the network state in one vec could also work and would probably
+// speed up due to ambiguous states where the same kinds of pods are just swapped
+// also the destination state is ambiguous, there are multiple good ones
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 struct PodState {
     name: char, // name is not unique, used only for debug visualization and movement cost
@@ -118,7 +153,7 @@ impl PodState {
         PodState { name, node }
     }
     fn cost_heuristic(&self) -> Cost {
-        let xdiff = (self.node.x - homeplace(self.name)).abs();
+        let xdiff = (self.node.x - homeplace(self.name)).abs() as i32;
         if true {
             if xdiff == 0 {
                 0
@@ -130,6 +165,10 @@ impl PodState {
                     2 => (1 + xdiff + 1) * step_energy(self.name),
                     // up twice, down at least once
                     3 => (2 + xdiff + 1) * step_energy(self.name),
+                    // up thrice, down at least once
+                    4 => (3 + xdiff + 1) * step_energy(self.name),
+                    // up 4, down at least once
+                    5 => (4 + xdiff + 1) * step_energy(self.name),
                     _ => panic!("bad pos")
                 }
             }
@@ -161,18 +200,36 @@ struct State {
     pods: PodList,
 }
 
+impl State {
+    fn pod_by_node(&self, n: Node) -> Option<PodState> {
+        self.pods.iter().find(|ps| ps.node == n).map(|&x| x)
+    }
+}
+
 fn occupied(state: &State, node: Node) -> bool {
     state.pods.iter().any(|p| p.node == node)
 }
 
 fn dump_state(world: &Graph, pods: &PodList) {
-    let map = "\
+    let part1 = pods.len() == 8;
+
+    let map = if part1 {
+        "\
         #############\n\
         #ef.g.h.i.jk#\n\
         ###l#m#n#o###\n\
-        ###p#q#r#s###\n";
+        ###p#q#r#s###\n"
+    } else {
+        "\
+        #############\n\
+        #ef.g.h.i.jk#\n\
+        ###l#m#n#o###\n\
+        ###p#q#r#s###\n\
+        ###t#u#v#w###\n\
+        ###x#y#z#{###\n"
+    };
     for ch in map.chars() {
-        let pr = if ch >= 'a' && ch <= 'z' {
+        let pr = if ch >= 'a' && ch <= '{' {
             let n = world.node_by_id(ch);
             if let Some(p) = pods.iter().find(|p| p.node == n) {
                 p.name
@@ -205,21 +262,24 @@ fn own_room(node: Node, name: char) -> bool {
     room_kind(node) == name
 }
 
-fn owner(state: &State, node: Node) -> Option<char> {
-    state.pods.iter().find(|ps| ps.node == node).map(|ps| ps.name)
+// comfort zone with deep rooms, like room_pair_owner in part 1: no foreigner there
+fn safe_looking_room(state: &State, spot: Node, player: PodState) -> bool {
+    let mut room_folk = state.pods.iter().filter(|ps| !hallway_node(ps.node) && ps.node.x == spot.x);
+    room_folk.all(|ps| ps.name == player.name)
 }
 
-fn room_pair(world: &Graph, node: Node) -> Node {
-    assert!(!hallway_node(node));
-    world.node_at((node.x, if node.y == 2 { 3 } else { 2 }))
-}
-
-fn room_pair_owner(world: &Graph, state: &State, node: Node) -> Option<char> {
-    owner(state, room_pair(world, node))
+// all below spots must be filled by own people.
+// not empty.
+// not foreigners.
+fn final_looking_spot(world: &Graph, state: &State, player: PodState) -> bool {
+    let mut same_room_below = world.nodes.iter().filter(|n| n.x == player.node.x && n.y > player.node.y);
+    same_room_below.all(|n| {
+        state.pod_by_node(*n).map(|ps| ps.name == player.name).unwrap_or(false)
+    })
 }
 
 fn unobstructed_destinations_visit(world: &Graph, state: &State, current_node: Node, current_cost: Cost, neighmap: &mut HashMap<Node, Cost>) {
-    if neighmap.contains_key(&current_node) {
+    if neighmap.contains_key(&current_node) && *neighmap.get(&current_node).unwrap() <= current_cost {
         return;
     }
     neighmap.insert(current_node, current_cost);
@@ -283,7 +343,7 @@ fn amphipod_dijkstra(world: &Graph, origin: PodList, destination: PodList) -> Co
                 while let Some(par) = parents.get(&here) {
                     println!();
                     dump_state(world, &par.pods);
-                    println!("dist of this ^ is {:?}", distances.get(&par));
+                    println!("dist of this ^ is {:?} deltacost is {}", distances.get(&par), distances.get(&here).unwrap() - distances.get(&par).unwrap_or(&0));
                     here = par.clone();
                 }
             }
@@ -295,21 +355,28 @@ fn amphipod_dijkstra(world: &Graph, origin: PodList, destination: PodList) -> Co
             println!();
         }
         for (podi, pod) in state_i.pods.iter().enumerate() {
+            // stay put if this is a destination spot
+            // final_looking_spot is needed because a pod might need to jump out to help a
+            // foreigner out first, like D in the example
+            if !hallway_node(pod.node) && own_room(pod.node, pod.name) && final_looking_spot(world, &state_i, *pod) {
+                //println!("kaikki ok {:?}", pod);
+                continue;
+            }
             // don't move into a node that has something already
-            let pod_neighs = unobstructed_destinations(world, &state_i, pod.node);// world.neighs(&pod.node);
+            let pod_neighs = unobstructed_destinations(world, &state_i, pod.node);
             if debug2 {
                 println!("pod {:?} neighs are {:#?}", pod, pod_neighs);
             }
             for (&next_node, &walk_distance) in pod_neighs.iter() {
                 assert!(!occupied(&state_i, next_node));
+                let podj = PodState::new(pod.name, next_node);
 
                 // stubborn rule #2: from hallway to only own room
                 if hallway_node(pod.node) && !hallway_node(next_node) {
-                    let other = room_pair_owner(world, &state_i, next_node).unwrap_or(pod.name);
-                    if own_room(next_node, pod.name) && other == pod.name {
+                    if own_room(next_node, pod.name) && safe_looking_room(&state_i, next_node, *pod) && final_looking_spot(world, &state_i, podj) {
                         // okay to enter
                     } else {
-                        // not ours, or someone bothering
+                        // not ours, or someone bothering, or empty gap in between
                         continue;
                     }
                 }
@@ -319,10 +386,15 @@ fn amphipod_dijkstra(world: &Graph, origin: PodList, destination: PodList) -> Co
                     continue;
                 }
 
+                if !hallway_node(pod.node) && !hallway_node(next_node) {
+                    // room to room is prone to break this brittle logic
+                    continue;
+                }
+
                 let dist_ij = walk_distance * step_energy(pod.name);
                 let dist_j = dist_i + dist_ij;
                 let mut state_j = state_i.clone();
-                state_j.pods[podi] = PodState::new(pod.name, next_node);
+                state_j.pods[podi] = podj;
                 if debug2 {
                     println!("move {:?} to {:?} cost is {}, that would look like:", pod, next_node, dist_ij);
                     dump_state(world, &state_j.pods);
@@ -331,13 +403,11 @@ fn amphipod_dijkstra(world: &Graph, origin: PodList, destination: PodList) -> Co
                 if dist_j < *distances.get(&state_j).unwrap_or(&MAX_COST) {
                     let cost_heuristic_j = goal_heuristic(&state_j);
                     let goal_heuristic_j = dist_j + cost_heuristic_j;
-                    //println!("pushing: (heur {})", cost_heuristic_j);
-                    //dump_state(world, &state_j.pods);
                     heap.push((-goal_heuristic_j, -cost_heuristic_j, -dist_j, state_j.clone()));
                     if state_j.pods == destination {
                         return dist_j;
                     }
-                    if false {
+                    if true {
                         parents.insert(state_j.clone(), state_i.clone());
                     }
                     distances.insert(state_j, dist_j);
@@ -347,11 +417,7 @@ fn amphipod_dijkstra(world: &Graph, origin: PodList, destination: PodList) -> Co
         if distances.len() % 10000 == 0 {
             println!("dists {} heaplen {} min heuristic {} this cost {} zeromin {}", distances.len(), heap.len(), minheur, dist_i, min_zero);
         }
-        if distances.len() > 15_970_000 {
-            panic!("simosti");
-        }
     }
-    //println!("{:#?}", distances);
 
     println!("this many states found {}", distances.len());
     *distances.get(&State { pods: destination }).expect("noo")
@@ -359,7 +425,7 @@ fn amphipod_dijkstra(world: &Graph, origin: PodList, destination: PodList) -> Co
 
 fn collect_map(map: &[String], world: &Graph) -> PodList {
     map.iter().enumerate()
-        .flat_map(|(y, row)| row.chars().enumerate().map(move |(x, ch)| ((x as i32, y as i32), ch)))
+        .flat_map(|(y, row)| row.chars().enumerate().map(move |(x, ch)| ((x as i8, y as i8), ch)))
         .filter(|(_pos, ch)| *ch >= 'A' && *ch <= 'D')
         .map(|(pos, ch)| {
             PodState::new(ch, world.node_at(pos))
@@ -380,6 +446,19 @@ fn optimal_arrangement(world: &Graph) -> PodList {
     collect_map(&optimal_raw_map, world)
 }
 
+fn optimal_arrangement2(world: &Graph) -> PodList {
+    let optimal_raw_map = vec![
+        String::from("#############"),
+        String::from("#...........#"),
+        String::from("###A#B#C#D###"),
+        String::from("  #A#B#C#D#"),
+        String::from("  #A#B#C#D#"),
+        String::from("  #A#B#C#D#"),
+        String::from("  #########"),
+    ];
+    collect_map(&optimal_raw_map, world)
+}
+
 fn organize_amphipods(raw_map: &[String]) -> i32 {
     let world = empty_map();
     let pods = collect_map(raw_map, &world);
@@ -387,9 +466,21 @@ fn organize_amphipods(raw_map: &[String]) -> i32 {
     amphipod_dijkstra(&world, pods, destination)
 }
 
+fn organize_amphipods2(raw_map: &[String]) -> i32 {
+    let world = empty_map2();
+    let pods = collect_map(raw_map, &world);
+    let destination = optimal_arrangement2(&world);
+    amphipod_dijkstra(&world, pods, destination)
+}
+
 fn main() {
     let raw_map: Vec<String> = io::stdin().lock().lines()
         .map(|line| line.unwrap())
         .collect();
-    println!("{:?}", organize_amphipods(&raw_map));
+    let part1 = raw_map.len() == 5;
+    if part1 {
+        println!("{:?}", organize_amphipods(&raw_map));
+    } else {
+        println!("{:?}", organize_amphipods2(&raw_map));
+    }
 }
