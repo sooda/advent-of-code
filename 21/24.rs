@@ -73,7 +73,7 @@ fn reg_z(program: &[Instruction], input: Vec<i64>) -> i64 {
     mach.vars[3]
 }
 
-fn decode_num() -> Vec<i64> {
+fn decode_max() -> Vec<i64> {
     let max_digit = 9;
     // digit0 + 14 + -12 == digit9 == digit0 + 2
     let d0 = max_digit - 2;
@@ -99,12 +99,45 @@ fn decode_num() -> Vec<i64> {
     vec![d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13]
 }
 
-fn largest_accepted_monad_number(program: &[Instruction]) -> i64 {
-    let mut digits = decode_num();
+fn decode_min() -> Vec<i64> {
+    let min_digit = 1;
+    // digit0 + 14 + -12 == digit9 == digit0 + 2
+    let d0 = min_digit;
+    let d9 = d0 + 2;
+    // digit1 + 8 + -3 == digit8 == digit1 + 5
+    let d1 = min_digit;
+    let d8 = d1 + 5;
+    // digit2 + 4 + -4 == digit5 == digit2 + 0
+    let d2 = min_digit;
+    let d5 = d2;
+    // digit3 + 10 + -3 == digit4 == digit3 + 7
+    let d3 = min_digit;
+    let d4 = d3 + 7;
+    // digit6 + 4 + -8 == digit7 == digit6 + -4
+    let d6 = min_digit + 4;
+    let d7 = d6 - 4;
+    // digit10 + 0 + -6 == digit11 == digit10 + -6
+    let d10 = min_digit + 6;
+    let d11 = d10 - 6;
+    // digit12 + 13 + -12 == digit13 == digit12 + 1
+    let d12 = min_digit;
+    let d13 = d12 + 1;
+    vec![d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13]
+}
+
+fn validate_monad_number(program: &[Instruction], mut digits: Vec<i64>) -> i64 {
     let digits_as_number = digits.iter().fold(0, |acc, x| acc * 10 + x);
     digits.reverse();
     assert_eq!(reg_z(program, digits), 0);
     digits_as_number
+}
+
+fn largest_accepted_monad_number(program: &[Instruction]) -> i64 {
+    validate_monad_number(program, decode_max())
+}
+
+fn smallest_accepted_monad_number(program: &[Instruction]) -> i64 {
+    validate_monad_number(program, decode_min())
 }
 
 fn analyze_monad_program(program: &[Instruction]) {
@@ -234,4 +267,5 @@ fn main() {
         .collect();
     analyze_monad_program(&program);
     println!("{}", largest_accepted_monad_number(&program));
+    println!("{}", smallest_accepted_monad_number(&program));
 }
