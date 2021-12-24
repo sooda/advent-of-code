@@ -1,0 +1,335 @@
+inp w		// 0
+mul x 0		x = 0
+add x z		x = z
+mod x 26	x %= 26
+div z 1		z /= 1
+add x 11	x += 11
+eql x w		x == w?
+eql x 0		x != w?
+mul y 0		y = 0
+add y 25	y = 25
+mul y x		y *= x
+add y 1		y += 1
+mul z y		z *= y
+mul y 0		y = 0
+add y w		y = w
+add y 14	y += 14
+mul y x		y *= x
+add z y		z += y
+
+if (z % 26) + 11 != digit {
+	z *= 26
+	z += 14 + digit
+}
+
+inp w		// 1
+mul x 0		x = 0
+add x z		x += z
+mod x 26	x %= 26
+div z 1		z /= 1
+add x 13	x += 13
+eql x w		x == w?
+eql x 0		x != w?
+	if (z % 26) / 1 + 13 != digit {
+mul y 0		y = 0
+add y 25	y = 25
+mul y x		y *= x
+	y = 25
+}
+add y 1		y += 1
+mul z y		z *= y
+mul y 0		y = 0
+add y w		y += w
+add y 8		y += 8
+mul y x		y *= x
+add z y		z += y
+
+if (z % 26) + 13 != digit {
+	z *= 26
+	z += 8 + digit
+}
+
+inp w		// 2
+mul x 0
+add x z
+mod x 26
+div z 1
+add x 11
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 4
+mul y x
+add z y
+
+if (z % 26) + 11 != digit {
+	z *= 26
+	z += 4 + digit
+}
+
+inp w		// 3
+mul x 0
+add x z
+mod x 26
+div z 1
+add x 10
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 10
+mul y x
+add z y
+
+if (z % 26) + 10 != digit {
+	z *= 26
+	z += 10 + digit
+}
+
+inp w		// 4
+mul x 0
+add x z
+mod x 26
+div z 26
+add x -3
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 14
+mul y x
+add z y
+
+if (z % 26) + -3 != digit {
+	z /= 26
+	z *= 26
+	z += 14 + digit
+} else {
+	z /= 26
+}
+
+inp w		// 5
+mul x 0
+add x z
+mod x 26
+div z 26
+add x -4
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 10
+mul y x
+add z y
+
+if (z % 26) + -4 != digit {
+	z /= 26
+	z *= 26
+	z += 10 + digit
+} else {
+	z /= 26
+}
+
+inp w		// 6
+mul x 0
+add x z
+mod x 26
+div z 1
+add x 12
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 4
+mul y x
+add z y
+
+if (z % 26) + -12 != digit {
+	z *= 26
+	z += 4 + digit
+}
+
+inp w		// 7
+mul x 0
+add x z
+mod x 26
+div z 26
+add x -8
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 14
+mul y x
+add z y
+
+if (z % 26) + -8 != digit {
+	z /= 26
+	z *= 26
+	z += 14 + digit
+} else {
+	z /= 26
+}
+
+inp w		// 8
+mul x 0
+add x z
+mod x 26
+div z 26
+add x -3
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 1
+mul y x
+add z y
+
+if (z % 26) + -3 != digit {
+	z /= 26
+	z *= 26
+	z += 1 + digit
+} else {
+	z /= 26
+}
+
+inp w		// 9
+mul x 0
+add x z
+mod x 26
+div z 26
+add x -12
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 6
+mul y x
+add z y
+
+if (z % 26) + -12 != digit {
+	z /= 26
+	z *= 26
+	z += 6 + digit
+} else {
+	z /= 26
+}
+
+// this got boring, see the code for automatic offset value extraction
+
+inp w		// 10
+mul x 0
+add x z
+mod x 26
+div z 1
+add x 14
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 0
+mul y x
+add z y
+
+inp w		// 11
+mul x 0
+add x z
+mod x 26
+div z 26
+add x -6
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 9
+mul y x
+add z y
+
+inp w		// 12
+mul x 0
+add x z
+mod x 26
+div z 1
+add x 11
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 13
+mul y x
+add z y
+
+inp w		// 13
+mul x 0
+add x z
+mod x 26
+div z 26
+add x -12
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y 12
+mul y x
+add z y
