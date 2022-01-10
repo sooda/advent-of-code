@@ -130,6 +130,7 @@ fn bruteforce_steps(regions: &[Region]) -> usize {
 // The union of blob and fist would be the larger of these exactly.
 // The intersection of blob and fist would be smaller of these exactly.
 // Regarding one dimension at a time, the fist cuts the front, the back, or all the way.
+#[allow(unused_variables)]
 fn csg_sub(blob: &Cuboid, fist: &Cuboid) -> Vec<Cuboid> {
     // any of these might be an empty set
     let xleft = blob.left_part_of(fist);
@@ -241,25 +242,18 @@ fn csg_sub(blob: &Cuboid, fist: &Cuboid) -> Vec<Cuboid> {
     // this might very well be empty
     let right_mid_mid = Cuboid::intersect3_raw(&xright, &zmid, &ymid);
 
+    // note: a lot of duplication in the above logic; this shall be cleaned up one day
     [
         top_front_left, top_front_right, top_back_left,
         top_back_right, top_front_mid, top_back_mid,
         top_left_mid, top_right_mid, top_mid_mid,
-        front_bottom_left, front_bottom_right, front_top_left,
-        front_top_right, front_bottom_mid, front_top_mid,
-        front_left_mid, front_right_mid, front_mid_mid,
-        left_bottom_back, left_bottom_front, left_top_back,
-        left_top_front, left_bottom_mid, left_top_mid,
-        left_back_mid, left_front_mid, left_mid_mid,
         bot_front_left, bot_front_right, bot_back_left,
         bot_back_right, bot_front_mid, bot_back_mid,
         bot_left_mid, bot_right_mid, bot_mid_mid,
-        back_bottom_left, back_bottom_right, back_top_left,
-        back_top_right, back_bottom_mid, back_top_mid,
+        front_left_mid, front_right_mid, front_mid_mid,
         back_left_mid, back_right_mid, back_mid_mid,
-        right_bottom_back, right_bottom_front, right_top_back,
-        right_top_front, right_bottom_mid, right_top_mid,
-        right_back_mid, right_front_mid, right_mid_mid
+        left_mid_mid,
+        right_mid_mid
     ].iter().cloned().filter(|blob| blob.volume() != 0).collect()
     // wtf cloned, I need intoiterator
 
