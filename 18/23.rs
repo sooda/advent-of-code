@@ -335,7 +335,7 @@ fn some_plane_separates(aabb: &Aabb, planes: &[(Vec3, i64)]) -> bool {
     for &(normal, d) in planes {
         let corners = aabb.corners();
         let mut distances = [0; 8]; // avoid allocation; the size is known
-        for (&p, dist) in corners.into_iter().zip(distances.iter_mut()) {
+        for (p, dist) in corners.into_iter().zip(distances.iter_mut()) {
             *dist = normal.dot(p) + d;
         }
 

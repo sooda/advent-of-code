@@ -78,7 +78,7 @@ fn next_alive(bugs: Eris, x: i32, y: i32) -> bool {
         (x    , y - 1),
         (x    , y + 1),
     ];
-    let surrounding_bugs = adjacent.into_iter().filter(|&&(x, y)| bugs.bug_at(x, y)).count();
+    let surrounding_bugs = adjacent.into_iter().filter(|&(x, y)| bugs.bug_at(x, y)).count();
     if bugs.bug_at(x, y) {
         surrounding_bugs == 1
     } else {
@@ -140,7 +140,7 @@ fn next_alive_recursive(layers: &[Eris], current: usize, x: i32, y: i32) -> bool
         (x    , y - 1),
         (x    , y + 1),
     ];
-    let surrounding_bugs = adjacent.into_iter().map(|&(xi, yi)| {
+    let surrounding_bugs = adjacent.into_iter().map(|(xi, yi)| {
         if (xi, yi) == (2, 2) {
             next_border_count(layers, current + 1, x, y)
         // the simulation doesn't last long enough for anything to appear in outermost layer 0

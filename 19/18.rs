@@ -129,7 +129,7 @@ fn raw_bfs(map: &Map, origin: Vec2) -> HashMap<Vec2, BfsDistance> {
             (xi, yi - 1),
             (xi, yi + 1)
         ];
-        for &nextpos in steps.into_iter() {
+        for nextpos in steps.into_iter() {
             let unknown = !distances.contains_key(&nextpos);
             let tile = map[nextpos.1][nextpos.0];
             let open = tile != '#';

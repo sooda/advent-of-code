@@ -123,7 +123,7 @@ fn drive_i(computer: &mut Computer, input: i64) {
 
 fn drive_o(computer: &mut Computer) -> i64 {
     loop {
-        let state = drive_io(computer, &mut [].into_iter().cloned());
+        let state = drive_io(computer, &mut [].into_iter());
         if let Output(data) = state {
             return data;
         }
@@ -148,7 +148,7 @@ fn receive_packet(nic: &mut Computer, address: Address, queues: &mut [VecDeque<P
 fn transmit_value(nic: &mut Computer, value: i64, queues: &mut [VecDeque<Packet>]) -> Option<Packet> {
     let mut out = None;
     loop {
-        match drive_io(nic, &mut [value].into_iter().cloned()) {
+        match drive_io(nic, &mut [value].into_iter()) {
             Step => {
                 // continue
             },
@@ -186,7 +186,7 @@ use ListenState::*;
 
 // listen for a packet *from* this NIC
 fn listen_packet(nic: &mut Computer, queues: &mut [VecDeque<Packet>]) -> (ListenState, Option<Packet>) {
-    match drive_io(nic, &mut [-1].into_iter().cycle().cloned()) {
+    match drive_io(nic, &mut [-1].into_iter().cycle()) {
         Step => {
             // continue
             (Working, None)

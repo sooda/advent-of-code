@@ -109,7 +109,7 @@ type Coding = [Opcode; OPCODES];
 fn deduce_coding(samples: &[Sample]) -> Coding {
     let mut ops_remaining: HashSet<Opcode> = [
         Addr, Addi, Mulr, Muli, Banr, Bani, Borr, Bori, Setr, Seti, Gtir, Gtri, Gtrr, Eqir, Eqri, Eqrr
-    ].into_iter().cloned().collect();
+    ].into_iter().collect();
     let mut found_codes = [None; OPCODES];
     while !ops_remaining.is_empty() {
         for (i, mapping) in found_codes.iter_mut().enumerate().filter(|(_, m)| m.is_none()) {
