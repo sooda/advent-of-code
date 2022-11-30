@@ -3,7 +3,7 @@
 YEARS := $(shell seq 16 21)
 DAYS := $(shell seq 1 25)
 
-OPTS := -g -O
+OPTS := -g -O --edition=2021
 
 # not that helpful during quick development,
 # but good to periodically check the entire repo
