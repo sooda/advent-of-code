@@ -155,7 +155,7 @@ where Src: Block, Dst: Block {
     }
 }
 
-mod csi_copypasta {
+pub mod csi_copypasta {
 use crate::{Block, Block2, Block3, Block4, Rule, apply_upscale};
 
 fn expand_2to3(src: &Block2, rules: &[Rule]) -> Block3 {
