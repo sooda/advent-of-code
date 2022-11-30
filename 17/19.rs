@@ -41,7 +41,7 @@ fn path_letters(map: &[String]) -> (String, usize) {
                     unreachable!()
                 }
             }
-            b'A' ... b'Z' => {
+            b'A' ..= b'Z' => {
                 //println!("{}", at(x, y) as char);
                 path.push(at(x, y) as char);
             },
