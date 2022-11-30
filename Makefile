@@ -19,6 +19,8 @@ LIBS := -L $(call libpath,regex)
 TARGETS := $(foreach y,$(YEARS),$(patsubst %,$(y)/%,$(DAYS)))
 OUTPUTS := $(patsubst %,%.out,$(TARGETS))
 
+MAKEFLAGS += --no-builtin-rules
+
 all: $(TARGETS)
 
 run-all: $(OUTPUTS)
