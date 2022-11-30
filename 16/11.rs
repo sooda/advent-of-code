@@ -176,7 +176,7 @@ fn encode(objs: &ObjectState, elevator: usize) -> Encoded {
     for (i, floor) in objs.iter().enumerate() {
         for obj in floor {
             // shift floor index into position, skipping elevator
-            code = write_field(code, 1 + obj_index(obj), i as Encoded);;
+            code = write_field(code, 1 + obj_index(obj), i as Encoded);
             //code |= (i as Encoded) << (obj_index(obj) + 1) as Encoded * FLOOR_BITS;
         }
     }
