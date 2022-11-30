@@ -1,5 +1,3 @@
-#![feature(slice_rotate)]
-
 use std::fs::File;
 use std::io::BufReader;
 use std::io::BufRead;
@@ -9,7 +7,7 @@ use regex::Regex;
 
 fn spin(programs: &mut [char], n: usize) -> &[char] {
     let m = programs.len() - n;
-    programs.rotate(m);
+    programs.rotate_left(m);
     programs
 }
 
