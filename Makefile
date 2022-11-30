@@ -1,5 +1,6 @@
 # Because cargo would be so boring for the puzzles, let's learn to use plain rustc.
 
+THIS_YEAR := $(patsubst %,22/%,$(shell seq 1))
 YEARS := $(shell seq 16 21)
 DAYS := $(shell seq 1 25)
 
@@ -16,7 +17,7 @@ libpath = $(patsubst %,$(LIBPATH),$(1))
 # helpful in many puzzles to parse the input
 LIBS := -L $(call libpath,regex)
 
-TARGETS := $(foreach y,$(YEARS),$(patsubst %,$(y)/%,$(DAYS)))
+TARGETS := $(foreach y,$(YEARS),$(patsubst %,$(y)/%,$(DAYS))) $(THIS_YEAR)
 OUTPUTS := $(patsubst %,%.out,$(TARGETS))
 
 MAKEFLAGS += --no-builtin-rules
@@ -29,10 +30,10 @@ run-all: $(OUTPUTS)
 	rustc $(OPTS) $(LIBS) -o $@ $<
 
 # FIXME: use stdin instead
-$(foreach y,16 17 18,$(patsubst %,$(y)/%.out,$(DAYS))): %.out: %
+$(patsubst %,%.out,$(filter 16/% 17/% 18/%,$(TARGETS))): %.out: %
 	$< $<.input | tee $@
 
-$(foreach y,19 20 21,$(patsubst %,$(y)/%.out,$(DAYS))): %.out: %
+$(patsubst %,%.out,$(filter-out 16/% 17/% 18/%,$(TARGETS))): %.out: %
 	$< < $<.input | tee $@
 
 # md5 for various 2016 days
