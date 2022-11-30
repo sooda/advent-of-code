@@ -68,8 +68,8 @@ fn solve_b(input: i32) -> i32 {
     let idx = |x, y| ((y + s / 2) * s + (x + s / 2)) as usize;
     // https://oeis.org/A174344
     let mod_ = |x, y| x % y;
-    let next_x = |x, n| x + sin(mod_(floor((sqrt(4f64 * (n as f64 - 2f64) + 1f64))), 4f64) * PI / 2f64) as i32;
-    let next_y = |y, n| y - cos(mod_(floor((sqrt(4f64 * (n as f64 - 2f64) + 1f64))), 4f64) * PI / 2f64) as i32;
+    let next_x = |x, n| x + sin(mod_(floor(sqrt(4f64 * (n as f64 - 2f64) + 1f64)), 4f64) * PI / 2f64) as i32;
+    let next_y = |y, n| y - cos(mod_(floor(sqrt(4f64 * (n as f64 - 2f64) + 1f64)), 4f64) * PI / 2f64) as i32;
 
     arr[idx(0, 0)] = Some(1);
     let mut x = 1;

@@ -5,7 +5,7 @@ use std::io::BufRead;
 fn first_pair(polymer: &str) -> Option<usize> {
     let case_bit = 32;
     polymer.bytes().zip(polymer.bytes().skip(1)).position(|(a, b)| {
-        ((a ^ b) == case_bit)
+        (a ^ b) == case_bit
     })
 }
 

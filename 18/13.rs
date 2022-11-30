@@ -113,7 +113,7 @@ fn dump(map: &[Vec<char>], carts: &[Cart]) {
     println!("");
 }
 
-fn detect_collision(carts: &[Cart], i: usize, x: usize, y: usize) -> Option<(usize)> {
+fn detect_collision(carts: &[Cart], i: usize, x: usize, y: usize) -> Option<usize> {
     let collision = carts.iter().enumerate()
         .filter(|&(j, _)| j != i)
         .find(|(_, c)| c.x == x && c.y == y);
