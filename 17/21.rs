@@ -156,7 +156,7 @@ where Src: Block, Dst: Block {
 }
 
 mod csi_copypasta {
-use {Block, Block2, Block3, Block4, Rule, apply_upscale};
+use crate::{Block, Block2, Block3, Block4, Rule, apply_upscale};
 
 fn expand_2to3(src: &Block2, rules: &[Rule]) -> Block3 {
     for r in rules {
@@ -212,7 +212,7 @@ pub fn enhance(canvas: &Vec<u8>, rules: &[Rule]) -> Vec<u8> {
 } // csi_copypasta
 
 mod csi_fancy {
-use {Block, Block2, Block3, Block4, Rule, apply_upscale};
+use crate::{Block, Block2, Block3, Block4, Rule, apply_upscale};
 
 // rule execution for enhancing (expanding) a single cell in a canvas grid
 trait Expansion {
