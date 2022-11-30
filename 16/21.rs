@@ -75,7 +75,7 @@ fn scramble(state: &str, input: &str, forward: bool) -> String {
     } else if let Some(cap) = re_reverse.captures(input) {
         let pos_a = cap.get(1).unwrap().as_str().parse::<usize>().unwrap();
         let pos_b = cap.get(2).unwrap().as_str().parse::<usize>().unwrap();
-        &state[pos_a..pos_b+1].reverse();
+        state[pos_a..pos_b+1].reverse();
     } else if let Some(cap) = re_move.captures(input) {
         let mut pos_from = cap.get(1).unwrap().as_str().parse::<usize>().unwrap();
         let mut pos_to = cap.get(2).unwrap().as_str().parse::<usize>().unwrap();
