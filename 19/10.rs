@@ -1,5 +1,3 @@
-#![feature(vec_remove_item)]
-
 use std::io::{self, BufRead};
 use std::cmp::Ordering;
 
@@ -112,8 +110,13 @@ fn pew_round(origin: &(i32, i32), roids: &mut Vec<(i32, i32)>) -> Vec<(i32, i32)
     zapped
 }
 
+fn zap_roid(roids: &mut Vec<(i32, i32)>, victim: &(i32, i32)) {
+    let pos = roids.iter().position(|&r| r == *victim).unwrap();
+    roids.remove(pos);
+}
+
 fn pewpew(origin: &(i32, i32), roids: &mut Vec<(i32, i32)>, limit: usize) -> (i32, i32) {
-    roids.remove_item(origin);
+    zap_roid(roids, origin);
     let mut gone = 0;
     loop {
         let zapped = pew_round(origin, roids);
@@ -122,7 +125,7 @@ fn pewpew(origin: &(i32, i32), roids: &mut Vec<(i32, i32)>, limit: usize) -> (i3
         }
         gone += zapped.len();
         for z in zapped {
-            roids.remove_item(&z);
+            zap_roid(roids, &z);
         }
     }
 }
