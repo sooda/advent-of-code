@@ -10,8 +10,8 @@ use regex::Regex;
 fn parse_disc(row: String) -> (u32, u32) {
     let re = Regex::new(r"Disc #. has (\d+) positions; at time=0, it is at position (\d+).").unwrap();
     let cap = re.captures(&row).unwrap();
-    let positions = cap.at(1).unwrap().parse().unwrap();
-    let startpos = cap.at(2).unwrap().parse().unwrap();
+    let positions = cap.get(1).unwrap().as_str().parse().unwrap();
+    let startpos = cap.get(2).unwrap().as_str().parse().unwrap();
 
     (positions, startpos)
 }

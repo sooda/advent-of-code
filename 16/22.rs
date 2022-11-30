@@ -18,11 +18,11 @@ fn parse(input: String) -> Option<Node> {
     let re_swappos = Regex::new(r"/dev/grid/node-x(\d+)-y(\d+) +(\d+)T +(\d+)T +(\d+)T").unwrap();
 
     if let Some(cap) = re_swappos.captures(&input) {
-        let x = cap.at(1).unwrap().parse().unwrap();
-        let y = cap.at(2).unwrap().parse().unwrap();
-        let size = cap.at(3).unwrap().parse().unwrap();
-        let used = cap.at(4).unwrap().parse().unwrap();
-        let avail = cap.at(5).unwrap().parse::<u32>().unwrap();
+        let x = cap.get(1).unwrap().as_str().parse().unwrap();
+        let y = cap.get(2).unwrap().as_str().parse().unwrap();
+        let size = cap.get(3).unwrap().as_str().parse().unwrap();
+        let used = cap.get(4).unwrap().as_str().parse().unwrap();
+        let avail = cap.get(5).unwrap().as_str().parse::<u32>().unwrap();
         assert!(size == used + avail);
         Some(Node { x: x, y: y, size: size, used: used })
     } else {

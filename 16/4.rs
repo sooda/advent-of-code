@@ -21,9 +21,9 @@ fn sector_id(row: &str) -> u32 {
     // aaaaa-bbb-z-y-x-123[abxyz]
     let re = Regex::new(r"((?:[a-z]+-)*[a-z]+)+-(\d+)\[([a-z]+)\]").unwrap();
     let cap = re.captures(row).unwrap();
-    let encrypted_name = cap.at(1).unwrap().chars().filter(|&x| x != '-').collect::<String>();
-    let sector_id = cap.at(2).unwrap().parse::<u32>().unwrap();
-    let checksum = cap.at(3).unwrap();
+    let encrypted_name = cap.get(1).unwrap().as_str().chars().filter(|&x| x != '-').collect::<String>();
+    let sector_id = cap.get(2).unwrap().as_str().parse::<u32>().unwrap();
+    let checksum = cap.get(3).unwrap().as_str();
     let decrypted = encrypted_name.chars().map(
         |x| (
             ('a' as u32) + (

@@ -19,14 +19,14 @@ fn update(input: &str, mut screen: [u64; 6]) -> [u64; 6] {
     let re_rrow = Regex::new(r"rotate row y=(\d) by (\d+)").unwrap();
     let re_rcol = Regex::new(r"rotate column x=(\d+) by (\d+)").unwrap();
     if let Some(cap) = re_rect.captures(input) {
-        let w = cap.at(1).unwrap().parse::<usize>().unwrap();
-        let h = cap.at(2).unwrap().parse::<usize>().unwrap();
+        let w = cap.get(1).unwrap().as_str().parse::<usize>().unwrap();
+        let h = cap.get(2).unwrap().as_str().parse::<usize>().unwrap();
         for y in 0..h {
             screen[y] |= (1u64 << w) - 1;
         }
     } else if let Some(cap) = re_rrow.captures(input) {
-        let row = cap.at(1).unwrap().parse::<usize>().unwrap();
-        let by = cap.at(2).unwrap().parse::<u32>().unwrap();
+        let row = cap.get(1).unwrap().as_str().parse::<usize>().unwrap();
+        let by = cap.get(2).unwrap().as_str().parse::<u32>().unwrap();
         assert!(by < 50);
 
         let orig = screen[row];
@@ -38,8 +38,8 @@ fn update(input: &str, mut screen: [u64; 6]) -> [u64; 6] {
         // right part
         screen[row] |= orig >> (50 - by);
     } else if let Some(cap) = re_rcol.captures(input) {
-        let col = cap.at(1).unwrap().parse::<usize>().unwrap();
-        let by = cap.at(2).unwrap().parse::<usize>().unwrap();
+        let col = cap.get(1).unwrap().as_str().parse::<usize>().unwrap();
+        let by = cap.get(2).unwrap().as_str().parse::<usize>().unwrap();
         assert!(by < 6);
 
         let on = 1 << col;

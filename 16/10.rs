@@ -48,8 +48,8 @@ fn action(input: &str, bots: &mut Vec<Bot>, outs: &mut Vec<usize>) {
     let re_goesto = Regex::new(r"value (\d+) goes to bot (\d+)").unwrap();
     let re_gives = Regex::new(r"bot (\d+) gives low to (bot|output) (\d+) and high to (bot|output) (\d+)").unwrap();
     if let Some(cap) = re_goesto.captures(input) {
-        let val = cap.at(1).unwrap().parse::<usize>().unwrap();
-        let bot_num = cap.at(2).unwrap().parse::<usize>().unwrap();
+        let val = cap.get(1).unwrap().as_str().parse::<usize>().unwrap();
+        let bot_num = cap.get(2).unwrap().as_str().parse::<usize>().unwrap();
 
         if bot_num >= bots.len() {
             bots.resize(bot_num + 1, Bot { lo: 0, hi: 0, lo_dest: Dest::Bot(0), hi_dest: Dest::Bot(0) });
@@ -57,11 +57,11 @@ fn action(input: &str, bots: &mut Vec<Bot>, outs: &mut Vec<usize>) {
 
         assign(&mut bots[bot_num], val);
     } else if let Some(cap) = re_gives.captures(input) {
-        let bot_num = cap.at(1).unwrap().parse::<usize>().unwrap();
-        let lo_dest_type = cap.at(2).unwrap();
-        let lo_dest = cap.at(3).unwrap().parse::<usize>().unwrap();
-        let hi_dest_type = cap.at(4).unwrap();
-        let hi_dest = cap.at(5).unwrap().parse::<usize>().unwrap();
+        let bot_num = cap.get(1).unwrap().as_str().parse::<usize>().unwrap();
+        let lo_dest_type = cap.get(2).unwrap().as_str();
+        let lo_dest = cap.get(3).unwrap().as_str().parse::<usize>().unwrap();
+        let hi_dest_type = cap.get(4).unwrap().as_str();
+        let hi_dest = cap.get(5).unwrap().as_str().parse::<usize>().unwrap();
 
         if bot_num >= bots.len() {
             bots.resize(bot_num + 1, Bot { lo: 0, hi: 0, lo_dest: Dest::Bot(0), hi_dest: Dest::Bot(0) });
