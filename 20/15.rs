@@ -38,5 +38,5 @@ fn main() {
     let start: Vec<usize> = io::stdin().lock().lines().next().unwrap().unwrap()
         .split(',').map(|n| n.parse().unwrap()).collect();
     println!("{}", nth_number(&start, 2020, false));
-    println!("{}", nth_number(&start, 30000000, true));
+    println!("{}", nth_number(&start, 30000000, false));
 }
