@@ -14,13 +14,6 @@ fn process(row: &str) -> usize {
     nums.sort();
 
     (nums[0] + nums[1] > nums[2]) as usize
-
-}
-
-fn main1a() {
-    let src = readfile(&std::env::args().nth(1).unwrap());
-    let n = src.trim().split("\n").map(process).sum::<usize>();
-    println!("{}", n);
 }
 
 fn good_tri(a: u32, b: u32, c: u32) -> u32 {
@@ -31,6 +24,9 @@ fn good_tri(a: u32, b: u32, c: u32) -> u32 {
 
 fn main() {
     let src = readfile(&std::env::args().nth(1).unwrap());
+    let n = src.trim().split("\n").map(process).sum::<usize>();
+    println!("{}", n);
+
     // from 101 301 501 102 302 502 103 303 503
     // to   101 102 103 301 302 303 501 502 503
     let mut numbers = src.trim().split_whitespace().filter_map(|x| x.parse::<u32>().ok());

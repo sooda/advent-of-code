@@ -17,9 +17,13 @@ use What::*;
 
 #[derive(Debug)]
 struct Record {
+#[allow(dead_code)]
     year: u32,
+#[allow(dead_code)]
     month: u32,
+#[allow(dead_code)]
     day: u32,
+#[allow(dead_code)]
     hour: u32,
     min: u32,
     guard: u32,

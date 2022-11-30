@@ -111,7 +111,7 @@ fn cycledetect(map: &mut Vec<Vec<char>>, n: usize) -> usize {
 
     let mut next = vec![vec!['?'; w]; h];
 
-    for i in 0..=stabilize_time {
+    for _ in 0..=stabilize_time {
         magic(map, &mut next);
         for (ro, ri) in map.iter_mut().zip(next.iter()) {
             ro.copy_from_slice(ri);

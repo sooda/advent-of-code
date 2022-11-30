@@ -114,10 +114,11 @@ fn reg_h_final(program: &[Instruction]) -> Val {
 
 // still crazy slow, like four seconds per major iteration
 fn problem_translated() -> Val {
+#[allow(unused_assignments)]
     let (mut b, mut c, mut d, mut e, mut f, mut g, mut h) = (0i64, 0i64, 0i64, 0i64, 0i64, 0i64, 0i64);
     let (mut b0, mut c0, mut d0, mut e0, mut f0, mut g0, mut h0) = (0i64, 0i64, 0i64, 0i64, 0i64, 0i64, 0i64);
     b = 79;
-    c = b; // 79
+    // c = b; // 79
     b *= 100; // b = 7900
     b -= -100000; // b = 107900
     c = b; // c = 107900
@@ -178,6 +179,7 @@ fn problem_translated() -> Val {
 }
 
 fn nonprimes_in_range() -> Val {
+#[allow(unused_assignments)]
     let (mut b, mut c, mut h) = (0i64, 0i64, 0i64);
 
     b = 79;
@@ -216,7 +218,11 @@ fn main() {
     let program = BufReader::new(File::open(&std::env::args().nth(1).unwrap()).unwrap())
         .lines().map(|x| parse_line(&x.unwrap())).collect::<Vec<_>>();
     println!("{}", mul_count(&program));
-    //println!("{}", reg_h_final(&program));
-    //println!("{}", problem_translated());
+    if false {
+        println!("{}", reg_h_final(&program));
+    }
+    if false {
+        println!("{}", problem_translated());
+    }
     println!("{}", nonprimes_in_range());
 }

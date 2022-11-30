@@ -49,7 +49,7 @@ fn read_field(state: Encoded, idx: usize) -> Encoded {
     (state >> (idx * FLOOR_BITS)) & FLOOR_MASK
 }
 
-fn read_elevator(state: Encoded) -> Encoded {
+fn _read_elevator(state: Encoded) -> Encoded {
     read_field(state, 0)
 }
 
@@ -74,15 +74,15 @@ fn write_elevator(state: Encoded, new: Encoded) -> Encoded {
     write_field(state, 0, new)
 }
 
-fn write_microchip(state: Encoded, idx: usize, new: Encoded) -> Encoded {
+fn _write_microchip(state: Encoded, idx: usize, new: Encoded) -> Encoded {
     write_field(state, 1 + N_ELEMENTS + idx, new)
 }
 
-fn write_generator(state: Encoded, idx: usize, new: Encoded) -> Encoded {
+fn _write_generator(state: Encoded, idx: usize, new: Encoded) -> Encoded {
     write_field(state, 1 + idx, new)
 }
 
-fn name_index_sample(ch: char) -> usize {
+fn _name_index_sample(ch: char) -> usize {
     match ch {
         'H' => 0,
         'L' => 1,
@@ -90,14 +90,14 @@ fn name_index_sample(ch: char) -> usize {
     }
 }
 
-fn obj_index_sample(o: &Object) -> usize {
+fn _obj_index_sample(o: &Object) -> usize {
     match *o {
         Generator(ch) => name_index(ch),
         Microchip(ch) => N_ELEMENTS + name_index(ch)
     }
 }
 
-fn name_at_sample(pos: usize) -> char {
+fn _name_at_sample(pos: usize) -> char {
     match pos {
         0 => 'H',
         1 => 'L',
@@ -105,7 +105,7 @@ fn name_at_sample(pos: usize) -> char {
     }
 }
 
-fn obj_at_sample(pos: usize, nobjs: usize) -> Object {
+fn _obj_at_sample(pos: usize, nobjs: usize) -> Object {
     if pos < nobjs / 2 {
         Generator(name_at(pos))
     } else {
@@ -225,8 +225,10 @@ fn valid_encoded(state: Encoded) -> bool {
 }
 
 fn print(state: Encoded, nobjects: usize) {
-    //let debug = decode(state, nobjects);
-    //println!("  {:?}\n  {:?}\n  {:?}\n  {:?}", debug[0], debug[1], debug[2], debug[3]);
+    if false {
+        let debug = decode(state, nobjects);
+        println!("  {:?}\n  {:?}\n  {:?}\n  {:?}", debug[0], debug[1], debug[2], debug[3]);
+    }
 }
 
 // validate, see if not exist yet, add to nodes, enqueue
@@ -236,7 +238,9 @@ fn try_enqueue(nodes: &mut Vec<Node>, visited: &mut Vec<u64>, queue: &mut VecDeq
     if /* !nodes.contains(&next)*/ (visited[(state as usize) / 64] & (1 << (state % 64)) == 0) && valid_encoded(state) {
         //println!("push {:064b}", next.state);
         print(state, 4);
-        //nodes.push(next.clone());
+        if false {
+            nodes.push(next.clone());
+        }
         queue.push_back(next);
         visited[(state as usize) / 64] |= 1 << (state % 64);
     }
@@ -511,6 +515,10 @@ fn main_partone() {
 
 // 2b some extra items not listed on the record
 fn main() {
+    if false {
+        main_partone();
+        mainsample();
+    }
     let state: ObjectState = [
         vec![Generator('T'), Microchip('T'), Generator('P'), Generator('S'), Generator('E'), Microchip('E'), Generator('D'), Microchip('D')],
         vec![Microchip('P'), Microchip('S')],

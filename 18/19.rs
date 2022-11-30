@@ -138,6 +138,7 @@ struct M {
     r1: u64,
     r2: u64,
     r3: u64,
+#[allow(dead_code)]
     r4: u64,
     r5: u64,
 }
