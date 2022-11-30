@@ -25,7 +25,7 @@ fn wall(x: Coord, y: Coord, favorite: Coord) -> bool {
 
 fn search(x0: Coord, y0: Coord, endx: Coord, endy: Coord, fav: Coord) -> Depth {
     let mut visited = Vec::new();
-    visited.resize(1 << 30, 0u64);
+    visited.resize(1 << 20, 0u64);
     visited[(state(x0, y0) / 64) as usize] = 1 << (state(x0, y0) % 64);
 
     let mut queue = VecDeque::new();
@@ -58,7 +58,7 @@ fn search(x0: Coord, y0: Coord, endx: Coord, endy: Coord, fav: Coord) -> Depth {
 
 fn search_steps(x0: Coord, y0: Coord, fav: Coord, max: usize) -> u32 {
     let mut visited = Vec::new();
-    visited.resize(1 << 30, 0u64);
+    visited.resize(1 << 20, 0u64);
     visited[(state(x0, y0) / 64) as usize] = 1 << (state(x0, y0) % 64);
     let mut positions = 1;
 
