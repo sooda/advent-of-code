@@ -33,8 +33,14 @@ run-all: $(OUTPUTS)
 $(patsubst %,%.out,$(filter 16/% 17/% 18/%,$(TARGETS))): %.out: %
 	$< $<.input | tee $@
 
+$(patsubst %,%.out.sample,$(filter 16/% 17/% 18/%,$(TARGETS))): %.out.sample: %
+	$< $<.sample | tee $@
+
 $(patsubst %,%.out,$(filter-out 16/% 17/% 18/%,$(TARGETS))): %.out: %
 	$< < $<.input | tee $@
+
+$(patsubst %,%.out.sample,$(filter-out 16/% 17/% 18/%,$(TARGETS))): %.out.sample: %
+	$< < $<.sample | tee $@
 
 # md5 for various 2016 days
 16/5 16/14 16/17: %: %.rs
