@@ -1,6 +1,7 @@
 # Because cargo would be so boring for the puzzles, let's learn to use plain rustc.
 
-THIS_YEAR := $(patsubst %,22/%,$(shell seq 1 2 3))
+THIS_DAY := $(shell date +%d)
+THIS_YEAR := $(patsubst %,22/%,$(shell seq $(THIS_DAY)))
 YEARS := $(shell seq 16 21)
 DAYS := $(shell seq 1 25)
 
