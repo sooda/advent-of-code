@@ -21,9 +21,25 @@ fn priority_sums(sacks: &[String]) -> usize {
     sacks.iter().map(|s| sack_priority(s)).sum()
 }
 
+fn common_priority(sacks: &[String]) -> usize {
+    let mut common: HashSet<u8> = sacks[0].as_bytes().iter().cloned().collect();
+    for s in &sacks[1..] {
+        let s_set: HashSet<u8> = s.as_bytes().iter().cloned().collect();
+        common = common.intersection(&s_set).cloned().collect();
+    }
+    item_priority(*common.iter().next().unwrap())
+}
+
+fn group_priority_sums(sacks: &[String]) -> usize {
+    sacks.chunks(3).map(|group| {
+        common_priority(group)
+    }).sum()
+}
+
 fn main() {
     let rucksacks: Vec<_> = io::stdin().lock().lines()
         .map(|line| line.unwrap())
         .collect();
     println!("{}", priority_sums(&rucksacks));
+    println!("{}", group_priority_sums(&rucksacks));
 }
