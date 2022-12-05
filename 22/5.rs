@@ -1,5 +1,6 @@
 use std::io::{self, BufRead};
 
+#[derive(Clone)]
 struct Hanoi {
     stacks: Vec<Vec<char>>,
     moves: Vec<(usize, usize, usize)>,
@@ -11,6 +12,28 @@ fn top_stack_result(mut game: Hanoi) -> String {
             let x = game.stacks[src].pop().unwrap();
             game.stacks[dest].push(x);
         }
+    }
+    game.stacks.iter().map(|stack| stack.last().unwrap()).collect()
+}
+
+fn top_stack_result_9001(mut game: Hanoi) -> String {
+    for (count, src, dest) in game.moves {
+        let srclen = game.stacks[src].len();
+        // would be nice if rust could be told that dest != src, and:
+        // game.stacks[dest].extend(&game.stacks[src][srclen - count..]);
+        let (a, b) = game.stacks.split_at_mut(src.max(dest));
+        let (svec, dvec) = if src < dest {
+            // a is [0, .., src, ..], b is [dest, ..]
+            (&mut a[src], &mut b[0])
+        } else if src > dest {
+            // b is [src, ..], a is [0, .., dest, ..]
+            (&mut b[0], &mut a[dest])
+        } else {
+            panic!("src == dest disallowed")
+        };
+        dvec.extend(&svec[srclen - count..]);
+        // always truncated though so no '?' will happen
+        svec.resize(srclen - count, '?');
     }
     game.stacks.iter().map(|stack| stack.last().unwrap()).collect()
 }
@@ -54,5 +77,6 @@ fn main() {
         .map(|line| line.unwrap())
         .collect();
     let game = parse_game(&input);
-    println!("{}", top_stack_result(game));
+    println!("{}", top_stack_result(game.clone()));
+    println!("{}", top_stack_result_9001(game));
 }
