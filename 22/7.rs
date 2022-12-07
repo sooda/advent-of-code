@@ -2,9 +2,11 @@ use std::io::{self, BufRead};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+type DirContents = Rc<RefCell<Vec<Entry>>>;
+
 #[derive(Debug)]
 enum Entry {
-    Dir(String, Rc<RefCell<Vec<Entry>>>),
+    Dir(String, DirContents),
     File(usize),
 }
 
@@ -46,25 +48,25 @@ fn smallest_to_delete(root: &Entry, capacity: usize, need: usize) -> usize {
 }
 
 fn parse_listing(lines: &[String]) -> Entry {
-    let root_dir = Rc::new(RefCell::new(Vec::new()));
+    let root_dir: DirContents = Default::default();
     let mut visitstack = Vec::new();
     visitstack.push(root_dir.clone());
+    let mut parts = Vec::new(); // save on per-line allocs, use the same mem
     for line in lines {
-        if line == "$ ls" {
-            // ignored
-        } else if line == "$ cd /" {
-            // this is always the first line, and thus useless
-            assert!(Rc::ptr_eq(&visitstack.last().unwrap(), &root_dir));
-        } else if line.starts_with("$ cd ") {
-            let dirname: &str = line.rsplit(' ').next().unwrap();
-            assert!(dirname != "/");
-            if dirname == ".." {
-                visitstack.pop().unwrap();
-            } else {
-                // something like the hashmap entry api would be cool here
-                let current_dir = visitstack.last().unwrap().clone();
-                let current_dir_vec = current_dir.borrow();
-                if let Some(Entry::Dir(_, contents)) = current_dir_vec.iter().find(|d| {
+        parts.clear();
+        parts.extend(line.split(' '));
+        match &parts[..] {
+            &["$", "ls"] => (),
+            &["$", "cd", "/"] => {
+                // the first line in the input
+                assert!(Rc::ptr_eq(&visitstack.last().unwrap(), &root_dir));
+            },
+            &["$", "cd", ".."] => {
+                    visitstack.pop().unwrap();
+            },
+            &["$", "cd", dirname] => {
+                let current_dir: DirContents = visitstack.last().unwrap().clone();
+                if let Some(Entry::Dir(_, contents)) = current_dir.borrow().iter().find(|d| {
                     match d {
                         Entry::Dir(n, _) => n == dirname,
                         _ => false
@@ -73,19 +75,18 @@ fn parse_listing(lines: &[String]) -> Entry {
                     visitstack.push(contents.clone());
                 } else {
                     panic!("not found {}", dirname);
-                }
+                };
+            },
+            &["dir", name] => {
+                let mut current_dir = visitstack.last().unwrap().borrow_mut();
+                current_dir.push(Entry::Dir(name.to_string(), Default::default()));
+            },
+            &[size, _name] => {
+                let mut current_dir = visitstack.last().unwrap().borrow_mut();
+                current_dir.push(Entry::File(size.parse().unwrap()));
             }
-        } else {
-            let mut sp = line.split(' ');
-            let spec = sp.next().unwrap();
-            let name = sp.next().unwrap();
-            let mut current_dir = visitstack.last().unwrap().borrow_mut();
-            if spec == "dir" {
-                current_dir.push(Entry::Dir(name.to_string(), Rc::new(RefCell::new(Vec::new()))));
-            } else {
-                current_dir.push(Entry::File(spec.parse().unwrap()));
-            }
-        }
+            _ => panic!()
+        };
     }
     Entry::Dir("/".to_string(), root_dir)
 }
