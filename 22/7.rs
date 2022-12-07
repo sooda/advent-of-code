@@ -8,92 +8,70 @@ enum Entry {
     File(usize),
 }
 
-fn simple_compute_dirs_do(entry: &Entry, max: usize, total: &mut usize) -> usize {
+// an iterator over the tree would be better though but it's harder to implement
+fn walk_fs_sizes<F: FnMut(usize)>(entry: &Entry, visit: &mut F) -> usize {
     match entry {
-        Entry::Dir(_n, contents) => {
-            let sz = contents.borrow().iter().map(|c| simple_compute_dirs_do(c, max, total)).sum();
-            if sz <= max {
-                *total += sz;
-            }
-            sz
-        },
-        Entry::File(size) => *size,
+        Entry::Dir(_, contents) => {
+            let size = contents.borrow()
+                .iter()
+                .map(&mut |e| walk_fs_sizes(e, visit))
+                .sum();
+            visit(size);
+            size
+        }
+        Entry::File(size) => *size
     }
 }
 
-fn simple_compute_dirs(entry: &Entry, max: usize) -> usize {
+fn simple_compute_dirs(root: &Entry, max: usize) -> usize {
     let mut total = 0;
-    simple_compute_dirs_do(entry, max, &mut total);
+    walk_fs_sizes(root, &mut |size| {
+        if size <= max {
+            total += size;
+        }
+    });
     total
 }
 
-fn walk_fs_tree<F: FnMut(&Entry, usize)>(entry: &Entry, visit: &mut F) -> usize {
-    let size = match entry {
-        Entry::Dir(_, contents) => {
-            // contents.borrow().iter().map(&mut |e| walk_fs_tree(e, visit)).sum(),
-            let mut s = 0;
-            for e in contents.borrow().iter() {
-                s += walk_fs_tree(e, visit);
-            }
-            s
-        }
-        Entry::File(size) => *size,
-    };
-    visit(entry, size);
-    size
-}
-
 fn smallest_to_delete(root: &Entry, capacity: usize, need: usize) -> usize {
-    let mut space_used = 0;
-    // an iterator over the tree would be better though but it's harder to implement
-    walk_fs_tree(root, &mut |entry, _| {
-        match entry {
-            Entry::File(sz) => space_used += sz,
-            _ => (),
-        }
-    });
+    let space_used = walk_fs_sizes(root, &mut |_| { });
     let free_space = capacity - space_used;
-    let mut deletion_candidate_sizes = Vec::new();
-    walk_fs_tree(root, &mut |entry, size| {
-        match entry {
-            Entry::Dir(..) => if free_space + size >= need { deletion_candidate_sizes.push(size) },
-            _ => (),
+    let mut smallest = space_used;
+    walk_fs_sizes(root, &mut |size| {
+        if free_space + size >= need {
+            smallest = smallest.min(size);
         }
     });
-    *deletion_candidate_sizes.iter().min().unwrap()
+    smallest
 }
 
 fn parse_listing(lines: &[String]) -> Entry {
     let root_dir = Rc::new(RefCell::new(Vec::new()));
     let mut visitstack = Vec::new();
-    // like top of visitstack but more comfortable
-    let mut current_dir = Rc::downgrade(&root_dir);
+    visitstack.push(root_dir.clone());
     for line in lines {
-        if line.starts_with("$ ls") {
+        if line == "$ ls" {
             // ignored
         } else if line == "$ cd /" {
             // this is always the first line, and thus useless
-            // assert!(current_dir == &root_dir);
+            assert!(Rc::ptr_eq(&visitstack.last().unwrap(), &root_dir));
         } else if line.starts_with("$ cd ") {
             let dirname: &str = line.rsplit(' ').next().unwrap();
             assert!(dirname != "/");
             if dirname == ".." {
-                current_dir = visitstack.pop().unwrap();
+                visitstack.pop().unwrap();
             } else {
                 // something like the hashmap entry api would be cool here
-                let current_dir_up = current_dir.upgrade().unwrap();
-                let current_dir_vec = current_dir_up.borrow();
-                let direntry = current_dir_vec.iter().find(|d| {
+                let current_dir = visitstack.last().unwrap().clone();
+                let current_dir_vec = current_dir.borrow();
+                if let Some(Entry::Dir(_, contents)) = current_dir_vec.iter().find(|d| {
                     match d {
                         Entry::Dir(n, _) => n == dirname,
                         _ => false
                     }
-                });
-                if let Some(Entry::Dir(_, contents)) = direntry {
-                    visitstack.push(current_dir.clone());
-                    current_dir = Rc::downgrade(contents);
+                }) {
+                    visitstack.push(contents.clone());
                 } else {
-                    // haven't visited here yet
                     panic!("not found {}", dirname);
                 }
             }
@@ -101,10 +79,11 @@ fn parse_listing(lines: &[String]) -> Entry {
             let mut sp = line.split(' ');
             let spec = sp.next().unwrap();
             let name = sp.next().unwrap();
+            let mut current_dir = visitstack.last().unwrap().borrow_mut();
             if spec == "dir" {
-                current_dir.upgrade().unwrap().borrow_mut().push(Entry::Dir(name.to_string(), Rc::new(RefCell::new(Vec::new()))));
+                current_dir.push(Entry::Dir(name.to_string(), Rc::new(RefCell::new(Vec::new()))));
             } else {
-                current_dir.upgrade().unwrap().borrow_mut().push(Entry::File(spec.parse().unwrap()));
+                current_dir.push(Entry::File(spec.parse().unwrap()));
             }
         }
     }
