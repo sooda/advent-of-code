@@ -21,21 +21,29 @@ fn step_instruction(mach: &mut Machine, inst: Instruction) -> bool {
     mach.pipeline_stage
 }
 
-fn signal_strength(program: &[Instruction]) -> i32 {
+fn execute(program: &[Instruction]) -> (i32, String) {
     let mut mach = Machine { x: 1, pipeline_stage: false };
-    let mut sum = 0;
+    let mut strength_sum = 0;
     let mut cycle = 1;
+    let mut gfx = Vec::<char>::new();
     for &inst in program.iter() {
         loop {
             if cycle <= 120 && cycle == 20 || (cycle - 20) % 40 == 0 {
                 let signal_strength = cycle * mach.x;
-                sum += signal_strength;
+                strength_sum += signal_strength;
+            }
+
+            let xpos = (cycle - 1) % 40;
+            gfx.push(if (xpos - mach.x).abs() <= 1 {
+                '#'
+            } else {
+                '.'
+            });
+            if xpos == 39 {
+                gfx.push('\n');
             }
 
             let delay = step_instruction(&mut mach, inst);
-            if false {
-                println!("cycle executed {} x {} for {:?}", cycle, mach.x, inst);
-            }
             cycle += 1;
             if !delay {
                 break;
@@ -43,7 +51,7 @@ fn signal_strength(program: &[Instruction]) -> i32 {
         }
     }
 
-    sum
+    (strength_sum, gfx.iter().collect())
 }
 
 fn parse_instruction(input: &str) -> Instruction {
@@ -59,5 +67,7 @@ fn main() {
     let program: Vec<_> = io::stdin().lock().lines()
         .map(|line| parse_instruction(&line.unwrap()))
         .collect();
-    println!("{}", signal_strength(&program));
+    let (signal_strength, gfx) = execute(&program);
+    println!("{}", signal_strength);
+    println!("{}", gfx);
 }
