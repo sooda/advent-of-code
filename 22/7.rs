@@ -3,7 +3,6 @@
 use std::io::{self, BufRead};
 use std::cell::RefCell;
 use std::rc::Rc;
-
 type DirContents = Rc<RefCell<Vec<Entry>>>;
 
 #[derive(Debug)]
@@ -47,57 +46,91 @@ impl Entry {
     }
 }
 
-impl<'a> Iterator for EntrySizeIter<'a> {
-    type Item = usize;
-    fn next(&mut self) -> Option<Self::Item> {
+impl<'a> EntrySizeIter<'a> {
+    fn get_next(&mut self) -> Option<usize> {
         loop {
-            match self.stack.pop() {
-                Some(EntryVisit::Visiting(size)) => {
-                    // for parent directory, if any
-                    self.stack.push(EntryVisit::ExitResult(size));
-                    return Some(size);
-                },
-                Some(EntryVisit::Incoming(&Entry::File(size))) => {
-                    self.stack.push(EntryVisit::ExitResult(size));
-                },
-                Some(res @ EntryVisit::ExitResult(size)) => {
-                    let earlier = self.stack.pop();
-                    match earlier {
-                        Some(EntryVisit::ExitResult(esize)) => {
-                            self.stack.push(EntryVisit::ExitResult(size + esize));
-                        },
-                        // vsize should be 0 though, could return here already?
-                        Some(EntryVisit::Visiting(vsize)) => {
-                            // returned in next iteration
-                            self.stack.push(EntryVisit::Visiting(size + vsize));
-                        },
-                        Some(incoming @ EntryVisit::Incoming(_)) => {
-                            // flip the order to process the next one.
-                            // guaranteed to have two exitresults then
-                            self.stack.push(res);
-                            self.stack.push(incoming);
-                        },
-                        None => {
-                            // result of already visiting root directory
-                            return None;
-                        }
-                    };
-                },
-                Some(EntryVisit::Incoming(Entry::Dir(_, contents))) => {
-                    self.stack.push(EntryVisit::Visiting(0));
-                    let evec: std::cell::Ref<'a, _> = contents.borrow();
-                    // FIXME don't leak
-                    let evec = std::cell::Ref::leak(evec);
-                    for ent in evec.iter() {
-                        self.stack.push(EntryVisit::Incoming(ent));
-                    }
-                },
-                None => return None // hmmm, should end at exitresult
+            if let Some(opt) = self.iter_next() {
+                return opt;
+            }
+        }
+    }
+
+    fn iter_next(&mut self) -> Option<Option<usize>> {
+        match self.stack.pop() {
+            Some(EntryVisit::Visiting(size)) => {
+                // for parent directory, if any
+                self.stack.push(EntryVisit::ExitResult(size));
+                Some(Some(size))
+            },
+            Some(EntryVisit::Incoming(&Entry::File(size))) => {
+                // visiting a file is trivial
+                self.stack.push(EntryVisit::ExitResult(size));
+                None
+            },
+            Some(res @ EntryVisit::ExitResult(size)) => {
+                // combine parts of a directory,
+                // or return if nothing to combine anymore
+                self.combine_exit(res, size)
+            },
+            Some(EntryVisit::Incoming(Entry::Dir(_, contents))) => {
+                // expand directory contents on the stack,
+                // begin with visit marker to eventually return the size
+                self.stack.push(EntryVisit::Visiting(0));
+                let evec: std::cell::Ref<'a, _> = contents.borrow();
+                // FIXME don't leak
+                let evec = std::cell::Ref::leak(evec);
+                for ent in evec.iter() {
+                    self.stack.push(EntryVisit::Incoming(ent));
+                }
+                None
+            },
+            None => {
+                // hmmm, should end at exitresult.
+                // could be useful for initially empty iterators?
+                panic!("cannot happen with dir traversal");
+            },
+        }
+    }
+
+    // sum directory contents' sizes together
+    fn combine_exit(&mut self, res: EntryVisit<'a>, size: usize)
+    -> Option<Option<usize>> {
+        match self.stack.pop() {
+            Some(EntryVisit::ExitResult(esize)) => {
+                self.stack.push(EntryVisit::ExitResult(size + esize));
+                None
+            },
+            Some(EntryVisit::Visiting(vsize)) => {
+                // vsize should be 0 though, could return here already?
+                // returned in next iteration
+                self.stack.push(EntryVisit::Visiting(size + vsize));
+                None
+            },
+            Some(incoming @ EntryVisit::Incoming(_)) => {
+                // flip the order to process the next one.
+                // guaranteed to have a pair of exitresults then
+                self.stack.push(res);
+                self.stack.push(incoming);
+                None
+            },
+            None => {
+                // effect of the root dir providing exitresult for its parent,
+                // but the root doesn't have a parent; jazz music stops.
+                Some(None)
             }
         }
     }
 }
 
+impl<'a> Iterator for EntrySizeIter<'a> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.get_next()
+    }
+}
+
+// as the above stacky iterator, but wih recursion; much simpler
 fn walk_fs_sizes<F: FnMut(usize)>(entry: &Entry, visit: &mut F) -> usize {
     match entry {
         Entry::Dir(_, contents) => {
