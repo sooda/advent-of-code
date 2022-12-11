@@ -4,29 +4,29 @@ use std::collections::VecDeque;
 extern crate regex;
 use regex::Regex;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum OpArg {
     Old,
-    Constant(u32),
+    Constant(u64),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum Op {
     Sum,
     Mul
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Monkey {
-    items: VecDeque<u32>,
+    items: VecDeque<u64>,
     op: Op,
     op_arg: OpArg,
-    div_test: u32,
+    div_test: u64,
     true_throw: usize,
     false_throw: usize,
 }
 
-fn throw_item(monkey: &mut Monkey) -> Option<(usize, u32)> {
+fn throw_item(monkey: &mut Monkey, worry_ease: u64) -> Option<(usize, u64)> {
     if let Some(item) = monkey.items.pop_front() {
         let arg = match monkey.op_arg {
             OpArg::Old => item,
@@ -35,7 +35,7 @@ fn throw_item(monkey: &mut Monkey) -> Option<(usize, u32)> {
         let post_op = match monkey.op {
             Op::Sum => item + arg,
             Op::Mul => item * arg,
-        } / 3;
+        } / worry_ease % (2 * 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23);
         let destination = if post_op % monkey.div_test == 0 {
             monkey.true_throw
         } else {
@@ -47,23 +47,28 @@ fn throw_item(monkey: &mut Monkey) -> Option<(usize, u32)> {
     }
 }
 
-fn business_round(monkeys: &mut [Monkey], inspections: &mut [u32]) {
+fn business_round(monkeys: &mut [Monkey], inspections: &mut [u64], worry_ease: u64) {
     for mi in 0..monkeys.len() {
-        while let Some((destination, item)) = throw_item(&mut monkeys[mi]) {
+        while let Some((destination, item)) = throw_item(&mut monkeys[mi], worry_ease) {
             inspections[mi] += 1;
             monkeys[destination].items.push_back(item);
         }
     }
 }
 
-fn monkey_business(mut monkeys: Vec<Monkey>, rounds: usize) -> u32 {
+fn monkey_business(mut monkeys: Vec<Monkey>, rounds: usize, worry_ease: u64) -> u64 {
     let mut inspections = vec![0; monkeys.len()];
 
     for round in 0..rounds {
         if false {
             println!("before {}: {:?} {:#?}", round, inspections, monkeys);
         }
-        business_round(&mut monkeys, &mut inspections);
+        business_round(&mut monkeys, &mut inspections, worry_ease);
+        if false {
+            if round == 0 || round == 19 || (round + 1) % 1000 == 0 {
+                println!("{} {:?}", round, inspections);
+            }
+        }
     }
 
     inspections.sort_unstable();
@@ -106,5 +111,6 @@ fn main() {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input).unwrap();
     let monkeys = parse_monkeys(&input);
-    println!("{}", monkey_business(monkeys, 20));
+    println!("{}", monkey_business(monkeys.clone(), 20, 3));
+    println!("{}", monkey_business(monkeys, 10000, 1));
 }
