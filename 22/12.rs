@@ -4,18 +4,20 @@ use std::collections::{HashSet, VecDeque};
 type Map = [Vec<u8>];
 type Node = (usize, usize);
 
-fn bfs(map: &Map, start: Node, end: Node) -> u32 {
+fn bfs(map: &Map, start: Node, end: Option<Node>) -> (u32, u32) {
     let w = map[0].len();
     let h = map.len();
     let mut queue = VecDeque::new();
     let mut visited = HashSet::new();
     queue.push_back((start, 0));
     visited.insert(start);
+    let mut min_a = std::u32::MAX;
 
     let mut push = |q: &mut VecDeque<_>, pos: Node, next: Node, d: u32| {
-        let pos_elev = if pos == start { b'a' } else { map[pos.1][pos.0] };
-        let next_elev = if next == end { b'z' } else { map[next.1][next.0] };
-        let reachable = pos_elev + 1 == next_elev || pos_elev >= next_elev;
+        let pos_elev = if pos == start { b'z' } else { map[pos.1][pos.0] };
+        let next_elev = if Some(next) == end { b'a' } else { map[next.1][next.0] };
+        // traversal happens in inverse order wrt. mission instructions
+        let reachable = next_elev + 1 == pos_elev || next_elev >= pos_elev;
         let seen = visited.contains(&next);
         if reachable && !seen {
             q.push_back((next, d));
@@ -24,9 +26,13 @@ fn bfs(map: &Map, start: Node, end: Node) -> u32 {
     };
 
     while let Some((pos, dist)) = queue.pop_front() {
-        if pos == end {
-            return dist;
+        if Some(pos) == end {
+            return (dist, min_a);
         }
+        if map[pos.1][pos.0] == b'a' {
+            min_a = min_a.min(dist);
+        }
+
         if pos.0 > 0 {
             push(&mut queue, pos, (pos.0 - 1, pos.1), dist + 1);
         }
@@ -41,7 +47,7 @@ fn bfs(map: &Map, start: Node, end: Node) -> u32 {
         }
     }
 
-    std::i32::MAX
+    (std::u32::MAX, min_a)
 }
 
 fn find_pos(map: &Map, item: u8) -> Node {
@@ -51,22 +57,18 @@ fn find_pos(map: &Map, item: u8) -> Node {
 }
 
 fn path_to_end(map: &Map) -> u32 {
-    let start = find_pos(map, b'S');
-    let end = find_pos(map, b'E');
+    let start = find_pos(map, b'E');
+    let end = find_pos(map, b'S');
 
-    bfs(map, start, end)
+    bfs(map, start, Some(end)).0
 }
 
-fn best_path_to_end(map: &Map) -> i32 {
-    let end = find_pos(map, b'E');
+fn best_path_to_end(map: &Map) -> u32 {
+    let start = find_pos(map, b'E');
 
-    map.iter().enumerate().flat_map(|(y, row)| {
-        row.iter().enumerate().map(move |(x, &cell)| ((x, y), cell))
-    })
-    .filter(|&(_, cell)| cell == b'a' || cell == b'S')
-    .map(|(pos, _)| bfs(map, pos, end))
-    .min()
-    .unwrap()
+    // could use the same bfs above and just not exit early,
+    // but this is separate on purpose
+    bfs(map, start, None).1
 }
 
 fn main() {
