@@ -41,7 +41,7 @@ fn bfs(map: &Map, start: Node, end: Node) -> u32 {
         }
     }
 
-    panic!("bfs did not find it")
+    std::i32::MAX
 }
 
 fn find_pos(map: &Map, item: u8) -> Node {
@@ -57,9 +57,22 @@ fn path_to_end(map: &Map) -> u32 {
     bfs(map, start, end)
 }
 
+fn best_path_to_end(map: &Map) -> i32 {
+    let end = find_pos(map, b'E');
+
+    map.iter().enumerate().flat_map(|(y, row)| {
+        row.iter().enumerate().map(move |(x, &cell)| ((x, y), cell))
+    })
+    .filter(|&(_, cell)| cell == b'a' || cell == b'S')
+    .map(|(pos, _)| bfs(map, pos, end))
+    .min()
+    .unwrap()
+}
+
 fn main() {
     let map: Vec<_> = io::stdin().lock().lines()
         .map(|line| line.unwrap().into_bytes())
         .collect();
     println!("{}", path_to_end(&map));
+    println!("{}", best_path_to_end(&map));
 }
