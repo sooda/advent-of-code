@@ -32,16 +32,16 @@ run-all: $(OUTPUTS)
 
 # FIXME: use stdin instead
 $(patsubst %,%.out,$(filter 16/% 17/% 18/%,$(TARGETS))): %.out: %
-	$< $<.input | tee $@
+	$< $<.input 2>&1 | tee $@
 
 $(patsubst %,%.out.sample,$(filter 16/% 17/% 18/%,$(TARGETS))): %.out.sample: %
-	$< $<.sample | tee $@
+	$< $<.sample 2>&1 | tee $@
 
 $(patsubst %,%.out,$(filter-out 16/% 17/% 18/%,$(TARGETS))): %.out: %
-	$< < $<.input | tee $@
+	$< < $<.input 2>&1 | tee $@
 
 $(patsubst %,%.out.sample,$(filter-out 16/% 17/% 18/%,$(TARGETS))): %.out.sample: %
-	$< < $<.sample | tee $@
+	$< < $<.sample 2>&1 | tee $@
 
 # md5 for various 2016 days
 16/5 16/14 16/17: %: %.rs
