@@ -1,5 +1,6 @@
 use std::io::{self, Read};
 use std::str;
+use std::cmp::Ordering;
 
 // skip a recursive list, find the first one at any depth
 // the [ already consumed
@@ -125,6 +126,25 @@ fn right_order_sum(pairs: &[(String, String)]) -> usize {
         .sum()
 }
 
+fn decoder_key(pairs: &[(String, String)]) -> usize {
+    let dividers = &[ "[[2]]", "[[6]]" ];
+    let mut v: Vec<&str> = pairs.iter()
+        .flat_map(|p| std::iter::once(&p.0 as &str).chain(std::iter::once(&p.1 as &str)))
+        .collect();
+    v.extend(dividers.iter());
+    v.sort_unstable_by(|l, r| {
+        match compare_list(&l.as_bytes()[1..], &r.as_bytes()[1..]).0 {
+            Some(true) => Ordering::Less,
+            None => Ordering::Equal,
+            Some(false) => Ordering::Greater,
+        }
+    });
+
+    dividers.iter()
+        .map(|div| v.iter().position(|a| a == div).unwrap() + 1)
+        .fold(1, |acc, x| acc * x)
+}
+
 fn parse_pairs(input: &str) -> Vec<(String, String)> {
     input.split("\n\n").map(|i| {
         let mut sp = i.split("\n");
@@ -137,4 +157,5 @@ fn main() {
     io::stdin().read_to_string(&mut input).unwrap();
     let pairs = parse_pairs(&input);
     println!("{}", right_order_sum(&pairs));
+    println!("{}", decoder_key(&pairs));
 }
