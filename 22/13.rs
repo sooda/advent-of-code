@@ -2,29 +2,35 @@ use std::io::{self, Read};
 use std::str;
 use std::cmp::Ordering;
 
+enum CompareResult<'a, 'b> {
+    Less,
+    Greater,
+    Equal(&'a [u8], &'b [u8]),
+}
+
 // left smaller than right?
 // the [ of l[0] and r[0] already consumed
-fn compare_list<'a, 'b>(mut l: &'a [u8], mut r: &'b [u8]) -> (Option<bool>, &'a [u8], &'b [u8]) {
+fn compare_list<'a, 'b>(mut l: &'a [u8], mut r: &'b [u8]) -> CompareResult<'a, 'b> {
     loop {
         match (l[0], r[0]) {
             (b']', b']') => {
                 // both ended, validity unknown
-                return (None, &l[1..], &r[1..]);
+                return CompareResult::Equal(&l[1..], &r[1..]);
             },
             (b']', _) => {
                 // left ran out
-                return (Some(true), l, r);
+                return CompareResult::Less;
             },
             (_, b']') => {
                 // right ran out
-                return (Some(false), l, r);
+                return CompareResult::Greater;
             },
             (b'0' ..= b':', b'0' ..= b':') => {
                 // both are numbers
                 if l[0] < r[0] {
-                    return (Some(true), l, r);
+                    return CompareResult::Less;
                 } else if l[0] > r[0] {
-                    return (Some(false), l, r);
+                    return CompareResult::Greater;
                 }
                 l = &l[1..];
                 r = &r[1..];
@@ -36,32 +42,42 @@ fn compare_list<'a, 'b>(mut l: &'a [u8], mut r: &'b [u8]) -> (Option<bool>, &'a 
             },
             (b'[', b'[') => {
                 // both contain a list; read and skip over
-                let (valid, lnew, rnew) = compare_list(&l[1..], &r[1..]);
-                if let Some(v) = valid {
-                    return (Some(v), l, r);
+                let result = compare_list(&l[1..], &r[1..]);
+                match result {
+                    CompareResult::Equal(lnew, rnew) => {
+                        l = lnew;
+                        r = rnew;
+                    },
+                    _ => return result,
                 }
-                l = lnew;
-                r = rnew;
             },
             (b'[', b'0' ..= b':') => {
                 // l list, r number
                 let rr = [r[0], b']'];
-                let (valid, lnew, _rnew) = compare_list(&l[1..], &rr);
-                if let Some(v) = valid {
-                    return (Some(v), l, r);
+                let result = compare_list(&l[1..], &rr);
+                match result {
+                    CompareResult::Equal(lnew, rnew) => {
+                        l = lnew;
+                        r = &r[1..];
+                    },
+                    // "returns a value referencing data owned by the current function"
+                    // no, rustc, rr is not in these enumerators
+                    CompareResult::Less => return CompareResult::Less,
+                    CompareResult::Greater => return CompareResult::Greater,
                 }
-                l = lnew;
-                r = &r[1..];
             },
             (b'0' ..= b':', b'[') => {
                 // l number, r list
                 let ll = [l[0], b']'];
-                let (valid, _lnew, rnew) = compare_list(&ll, &r[1..]);
-                if let Some(v) = valid {
-                    return (Some(v), l, r);
+                let result = compare_list(&ll, &r[1..]);
+                match result {
+                    CompareResult::Equal(lnew, rnew) => {
+                        l = &l[1..];
+                        r = rnew;
+                    },
+                    CompareResult::Less => return CompareResult::Less,
+                    CompareResult::Greater => return CompareResult::Greater,
                 }
-                l = &l[1..];
-                r = rnew;
             },
             _ => panic!("what? {} {}", l[0] as char, r[0] as char),
         };
@@ -71,7 +87,11 @@ fn compare_list<'a, 'b>(mut l: &'a [u8], mut r: &'b [u8]) -> (Option<bool>, &'a 
 fn right_order(l: &[u8], r: &[u8]) -> bool {
     assert!(l[0] == b'[');
     assert!(r[0] == b'[');
-    compare_list(&l[1..], &r[1..]).0.unwrap()
+    match compare_list(&l[1..], &r[1..]) {
+        CompareResult::Less => true,
+        CompareResult::Equal(..) => panic!("silence! order!"),
+        CompareResult::Greater => false,
+    }
 }
 
 fn right_order_sum(pairs: &[(String, String)]) -> usize {
@@ -88,10 +108,10 @@ fn decoder_key(pairs: &[(String, String)]) -> usize {
         .collect();
     v.extend(dividers.iter());
     v.sort_unstable_by(|l, r| {
-        match compare_list(&l.as_bytes()[1..], &r.as_bytes()[1..]).0 {
-            Some(true) => Ordering::Less,
-            None => Ordering::Equal,
-            Some(false) => Ordering::Greater,
+        match compare_list(&l.as_bytes()[1..], &r.as_bytes()[1..]) {
+            CompareResult::Less => Ordering::Less,
+            CompareResult::Equal(..) => Ordering::Equal,
+            CompareResult::Greater => Ordering::Greater,
         }
     });
 
