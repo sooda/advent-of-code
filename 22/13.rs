@@ -8,80 +8,76 @@ enum CompareResult<'a, 'b> {
     Equal(&'a [u8], &'b [u8]),
 }
 
+// this always gets one result, never breaks the recursion
+fn compare_proxy<'a, 'b>(l: &'a [u8], r: &'b [u8]) -> CompareResult<'a, 'b> {
+    match (l[0], r[0]) {
+        (b']', b']') => {
+            // both ended, validity unknown
+            CompareResult::Equal(&l[1..], &r[1..])
+        },
+        (b']', _) => {
+            // left ran out
+            CompareResult::Less
+        },
+        (_, b']') => {
+            // right ran out
+            CompareResult::Greater
+        },
+        (b'0' ..= b':', b'0' ..= b':') => {
+            // both are numbers
+            match l[0].cmp(&r[0]) {
+                Ordering::Less => CompareResult::Less,
+                Ordering::Greater => CompareResult::Greater,
+                _ => CompareResult::Equal(&l[1..], &r[1..]),
+            }
+        },
+        (b',', b',') => {
+            // both lists continue
+            CompareResult::Equal(&l[1..], &r[1..])
+        },
+        (b'[', b'[') => {
+            // both contain a list; read and skip over
+            compare_list(&l[1..], &r[1..])
+        },
+        (b'[', b'0' ..= b':') => {
+            // l list, r number
+            let rr = [r[0], b']']; // can't be inline in call because technically matched below
+            let result = compare_list(&l[1..], &rr);
+            match result {
+                // proxy the r back
+                CompareResult::Equal(lnew, _) => CompareResult::Equal(lnew, &r[1..]),
+                // "returns a value referencing data owned by the current function"
+                // no, rustc, rr is not in these enumerators
+                CompareResult::Less => CompareResult::Less,
+                CompareResult::Greater => CompareResult::Greater,
+            }
+        },
+        (b'0' ..= b':', b'[') => {
+            // l number, r list
+            let ll = [l[0], b']'];
+            let result = compare_list(&ll, &r[1..]);
+            match result {
+                CompareResult::Equal(_, rnew) => CompareResult::Equal(&l[1..], rnew),
+                CompareResult::Less => CompareResult::Less,
+                CompareResult::Greater => CompareResult::Greater,
+            }
+        },
+        _ => panic!("what? {} {}", l[0] as char, r[0] as char),
+    }
+}
+
 // left smaller than right?
 // the [ of l[0] and r[0] already consumed
 fn compare_list<'a, 'b>(mut l: &'a [u8], mut r: &'b [u8]) -> CompareResult<'a, 'b> {
-    loop {
-        match (l[0], r[0]) {
-            (b']', b']') => {
-                // both ended, validity unknown
-                return CompareResult::Equal(&l[1..], &r[1..]);
-            },
-            (b']', _) => {
-                // left ran out
-                return CompareResult::Less;
-            },
-            (_, b']') => {
-                // right ran out
-                return CompareResult::Greater;
-            },
-            (b'0' ..= b':', b'0' ..= b':') => {
-                // both are numbers
-                if l[0] < r[0] {
-                    return CompareResult::Less;
-                } else if l[0] > r[0] {
-                    return CompareResult::Greater;
-                }
-                l = &l[1..];
-                r = &r[1..];
-            },
-            (b',', b',') => {
-                // both lists continue
-                l = &l[1..];
-                r = &r[1..];
-            },
-            (b'[', b'[') => {
-                // both contain a list; read and skip over
-                let result = compare_list(&l[1..], &r[1..]);
-                match result {
-                    CompareResult::Equal(lnew, rnew) => {
-                        l = lnew;
-                        r = rnew;
-                    },
-                    _ => return result,
-                }
-            },
-            (b'[', b'0' ..= b':') => {
-                // l list, r number
-                let rr = [r[0], b']'];
-                let result = compare_list(&l[1..], &rr);
-                match result {
-                    CompareResult::Equal(lnew, rnew) => {
-                        l = lnew;
-                        r = &r[1..];
-                    },
-                    // "returns a value referencing data owned by the current function"
-                    // no, rustc, rr is not in these enumerators
-                    CompareResult::Less => return CompareResult::Less,
-                    CompareResult::Greater => return CompareResult::Greater,
-                }
-            },
-            (b'0' ..= b':', b'[') => {
-                // l number, r list
-                let ll = [l[0], b']'];
-                let result = compare_list(&ll, &r[1..]);
-                match result {
-                    CompareResult::Equal(lnew, rnew) => {
-                        l = &l[1..];
-                        r = rnew;
-                    },
-                    CompareResult::Less => return CompareResult::Less,
-                    CompareResult::Greater => return CompareResult::Greater,
-                }
-            },
-            _ => panic!("what? {} {}", l[0] as char, r[0] as char),
-        };
+    while l.len() > 0 && r.len() > 0 {
+        match compare_proxy(l, r) {
+            lt @ CompareResult::Less => return lt,
+            CompareResult::Equal(lnew, rnew) => { l = lnew; r = rnew; },
+            gt @ CompareResult::Greater => return gt,
+        }
     }
+
+    CompareResult::Equal(l, r)
 }
 
 fn right_order(l: &[u8], r: &[u8]) -> bool {
