@@ -2,40 +2,9 @@ use std::io::{self, Read};
 use std::str;
 use std::cmp::Ordering;
 
-// skip a recursive list, find the first one at any depth
-// the [ already consumed
-fn skip_list(mut a: &[u8]) -> (Option<u8>, usize, &[u8]) {
-    // find the first element
-    let (a0, mut n, anext) = match a[0] {
-        b'0' ..= b':' => (Some(a[0]), 1, &a[1..]),
-        b'[' => skip_list(&a[1..]),
-        b']' => (None, 0, a),
-        _ => panic!("skip err1 {}", a[0] as char),
-    };
-    // consume calcium
-    a = anext;
-    loop {
-        match a[0] {
-            b'0' ..= b':' | b',' => {
-                a = &a[1..];
-                n += 1;
-            },
-            b'[' => {
-                let (_, _, anext) = skip_list(&a[1..]);
-                a = anext;
-                n += 1;
-            },
-            b']' => {
-                return (a0, n, &a[1..]);
-            },
-            _ => panic!("skip err2 {}", a[0] as char),
-        };
-    }
-}
-
 // left smaller than right?
 // the [ of l[0] and r[0] already consumed
-fn compare_list<'a>(mut l: &'a [u8], mut r: &'a [u8]) -> (Option<bool>, &'a [u8], &'a [u8]) {
+fn compare_list<'a, 'b>(mut l: &'a [u8], mut r: &'b [u8]) -> (Option<bool>, &'a [u8], &'b [u8]) {
     loop {
         match (l[0], r[0]) {
             (b']', b']') => {
@@ -76,34 +45,20 @@ fn compare_list<'a>(mut l: &'a [u8], mut r: &'a [u8]) -> (Option<bool>, &'a [u8]
             },
             (b'[', b'0' ..= b':') => {
                 // l list, r number
-                let (l0, nl, lnew) = skip_list(&l[1..]);
-                if let Some(l0) = l0 {
-                    if l0 < r[0] {
-                        return (Some(true), l, r);
-                    } else if l0 > r[0] {
-                        return (Some(false), l, r);
-                    } else if nl > 1 {
-                        return (Some(false), l, r);
-                    }
-                } else {
-                    // empty list is smaller than anything
-                    return (Some(true), l, r);
+                let rr = [r[0], b']'];
+                let (valid, lnew, _rnew) = compare_list(&l[1..], &rr);
+                if let Some(v) = valid {
+                    return (Some(v), l, r);
                 }
                 l = lnew;
                 r = &r[1..];
             },
             (b'0' ..= b':', b'[') => {
                 // l number, r list
-                let (r0, _rl, rnew) = skip_list(&r[1..]);
-                if let Some(r0) = r0 {
-                    if l[0] < r0 {
-                        return (Some(true), l, r);
-                    } else if l[0] > r0 {
-                        return (Some(false), l, r);
-                    }
-                } else {
-                    // anything is greater than empty list
-                    return (Some(false), l, r);
+                let ll = [l[0], b']'];
+                let (valid, _lnew, rnew) = compare_list(&ll, &r[1..]);
+                if let Some(v) = valid {
+                    return (Some(v), l, r);
                 }
                 l = &l[1..];
                 r = rnew;
