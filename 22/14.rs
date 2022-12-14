@@ -115,13 +115,12 @@ enum SandPlacement {
 use SandPlacement::*;
 
 fn flowable(g: &Ground, x: usize, y: usize) -> Option<usize> {
-    for &xnew in &[x, x - 1, x + 1] {
-        let cell = g.at(xnew, y + 1);
-        if cell == Air || cell == Channel {
-            return Some(xnew);
-        }
-    }
-    None
+    [x, x - 1, x + 1].into_iter()
+        .filter_map(|xnew| match g.at(xnew, y + 1) {
+            Air | Channel => Some(xnew),
+            _ => None
+        })
+        .next()
 }
 
 fn droplet(g: &mut Ground, mut x: usize, mut y: usize) -> SandPlacement {
