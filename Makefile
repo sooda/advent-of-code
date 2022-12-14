@@ -31,16 +31,16 @@ run-all: $(OUTPUTS)
 	rustc $(OPTS) $(LIBS) -o $@ $<
 
 # FIXME: use stdin instead
-$(patsubst %,%.out,$(filter 16/% 17/% 18/%,$(TARGETS))): %.out: %
+$(patsubst %,%.out,$(filter 16/% 17/% 18/%,$(TARGETS))): %.out: % %.input
 	$< $<.input 2>&1 | tee $@
 
-$(patsubst %,%.out.sample,$(filter 16/% 17/% 18/%,$(TARGETS))): %.out.sample: %
+$(patsubst %,%.out.sample,$(filter 16/% 17/% 18/%,$(TARGETS))): %.out.sample: % %.sample
 	$< $<.sample 2>&1 | tee $@
 
-$(patsubst %,%.out,$(filter-out 16/% 17/% 18/%,$(TARGETS))): %.out: %
+$(patsubst %,%.out,$(filter-out 16/% 17/% 18/%,$(TARGETS))): %.out: % %.input
 	$< < $<.input 2>&1 | tee $@
 
-$(patsubst %,%.out.sample,$(filter-out 16/% 17/% 18/%,$(TARGETS))): %.out.sample: %
+$(patsubst %,%.out.sample,$(filter-out 16/% 17/% 18/%,$(TARGETS))): %.out.sample: % %.sample
 	$< < $<.sample 2>&1 | tee $@
 
 # md5 for various 2016 days
