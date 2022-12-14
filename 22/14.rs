@@ -27,6 +27,7 @@ enum LandSquare {
 }
 use LandSquare::*;
 
+#[derive(Clone)]
 struct Ground {
     map: Vec<LandSquare>,
     w: usize,
@@ -83,27 +84,27 @@ fn dump_ppm(g: &Ground) {
 }
 
 fn mapscan(veins: &[Vein]) -> Ground {
-    let minx = veins.iter().map(|v| v.0.min(v.1)).min().unwrap();
-    let maxx = veins.iter().map(|v| v.0.max(v.1)).max().unwrap();
+    let pour_coord = 500;
     let miny = 0;
     let maxy = veins.iter().map(|v| v.2.max(v.3)).max().unwrap();
-
-    // note! borders are expanded open to let it flow there
-    let w = maxx - minx + 1 + 2;
-    let h = maxy - miny + 1 + 1;
-    let pour_x = 500 - minx + 1; // offset for border
+    let border = 2;
+    let minx = pour_coord - maxy - border;
+    let maxx = pour_coord + maxy + border;
+    let w = maxx - minx + 1;
+    let h = maxy - miny + 1 + border;
+    let pour_x = pour_coord - minx;
 
     let mut map = vec![Air; w * h];
     for v in veins {
         // either y or x stays constant
         for y in v.2..=v.3 {
             for x in v.0..=v.1 {
-                map[(y - miny) * w + (x - minx + 1)] = Rock;
+                map[(y - miny) * w + (x - minx + 0)] = Rock;
             }
         }
     }
 
-    Ground { map: map, w: w, h: h, pour_x: pour_x }
+    Ground { map, w, h, pour_x }
 }
 
 #[derive(Debug, PartialEq)]
@@ -126,7 +127,8 @@ fn flowable(g: &Ground, x: usize, y: usize) -> Option<usize> {
 fn droplet(g: &mut Ground, mut x: usize, mut y: usize) -> SandPlacement {
     loop {
         g.put(x, y, Channel);
-        if y == g.h - 2 {
+        if y == g.h - 1 {
+            // fell off
             return Exit;
         } else {
             if let Some(xnew) = flowable(g, x, y) {
@@ -137,9 +139,14 @@ fn droplet(g: &mut Ground, mut x: usize, mut y: usize) -> SandPlacement {
             }
         }
     }
-
     g.put(x, y, Sand);
-    Stopped
+
+    if (x, y) == (g.pour_x, 0) {
+        // no more space to fall, this is the last grain
+        Exit
+    } else {
+        Stopped
+    }
 }
 
 fn pour(g: &mut Ground) -> usize {
@@ -164,14 +171,21 @@ fn main() {
         .collect();
 
     let mut ground = mapscan(&veins);
+    let mut ground_with_floor = ground.clone();
+    for x in 0..ground.w {
+        ground_with_floor.put(x, ground.h - 1, Rock);
+    }
     if false {
         dunp(&ground);
+        dunp(&ground_with_floor);
     }
     let score = pour(&mut ground);
+    let floor_score = pour(&mut ground_with_floor);
     if false {
         dunp(&ground);
     }
     println!("{:?}", score);
+    println!("{:?}", floor_score);
     if false {
         dump_ppm(&ground);
     }
