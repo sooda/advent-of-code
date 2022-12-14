@@ -1,6 +1,7 @@
 use std::io::{self, Read};
 use std::str;
 use std::cmp::Ordering;
+use std::iter;
 
 enum CompareResult<'a, 'b> {
     Less,
@@ -33,6 +34,16 @@ impl<'a, 'b> From<(Ordering, &'a [u8], &'b [u8])> for CompareResult<'a, 'b> {
             Ordering::Less => CompareResult::Less,
             Ordering::Greater => CompareResult::Greater,
             _ => CompareResult::Equal(l, r),
+        }
+    }
+}
+
+impl<'a, 'b> From<CompareResult<'a, 'b>> for Ordering {
+    fn from(ord: CompareResult<'a, 'b>) -> Self {
+        match ord {
+            CompareResult::Less => Ordering::Less,
+            CompareResult::Greater => Ordering::Greater,
+            _ => Ordering::Equal,
         }
     }
 }
@@ -97,10 +108,16 @@ fn compare_list<'a, 'b>(mut l: &'a [u8], mut r: &'b [u8]) -> CompareResult<'a, '
     CompareResult::Equal(l, r)
 }
 
-fn right_order(l: &[u8], r: &[u8]) -> bool {
+fn compare<'a, 'b>(l: &'a str, r: &'b str) -> CompareResult<'a, 'b> {
+    let l = l.as_bytes();
+    let r = r.as_bytes();
     assert!(l[0] == b'[');
     assert!(r[0] == b'[');
-    match compare_list(&l[1..], &r[1..]) {
+    compare_list(&l[1..], &r[1..])
+}
+
+fn right_order(l: &str, r: &str) -> bool {
+    match compare(l, r) {
         CompareResult::Less => true,
         CompareResult::Equal(..) => panic!("silence! order!"),
         CompareResult::Greater => false,
@@ -109,7 +126,7 @@ fn right_order(l: &[u8], r: &[u8]) -> bool {
 
 fn right_order_sum(pairs: &[(String, String)]) -> usize {
     pairs.iter().enumerate()
-        .filter(|(_, p)| right_order(p.0.as_bytes(), p.1.as_bytes()))
+        .filter(|(_, p)| right_order(&p.0, &p.1))
         .map(|(i, _)| i + 1)
         .sum()
 }
@@ -117,16 +134,11 @@ fn right_order_sum(pairs: &[(String, String)]) -> usize {
 fn decoder_key(pairs: &[(String, String)]) -> usize {
     let dividers = &[ "[[2]]", "[[6]]" ];
     let mut v: Vec<&str> = pairs.iter()
-        .flat_map(|p| std::iter::once(&p.0 as &str).chain(std::iter::once(&p.1 as &str)))
+        .flat_map(|p| iter::once(&p.0 as &str).chain(iter::once(&p.1 as &str)))
         .collect();
     v.extend(dividers.iter());
-    v.sort_unstable_by(|l, r| {
-        match compare_list(&l.as_bytes()[1..], &r.as_bytes()[1..]) {
-            CompareResult::Less => Ordering::Less,
-            CompareResult::Equal(..) => Ordering::Equal,
-            CompareResult::Greater => Ordering::Greater,
-        }
-    });
+    // or Ordering::from()
+    v.sort_unstable_by(|l, r| compare(l, r).into());
 
     dividers.iter()
         .map(|div| v.iter().position(|a| a == div).unwrap() + 1)
