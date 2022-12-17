@@ -1,12 +1,8 @@
 use std::io::{self, BufRead};
 use std::collections::HashSet;
 
-fn map_height(map: &HashSet<(i64, i64)>) -> i64 {
-    // y axis points up
-    // 0 is the ground level, 1 is where the first rock stops
-    // (x 0 is in the air though)
-    map.iter().map(|&(_, y)| y).max().unwrap_or(0)
-}
+// pixels and max height
+struct Map(HashSet<(i64, i64)>, i64);
 
 const WIDE: i64 = 7;
 const LAUNCH_X: i64 = 2;
@@ -26,10 +22,11 @@ fn render(map: &HashSet<(i64, i64)>) {
     println!("+-------+");
 }
 
-fn drop<D: Iterator<Item=i64>>(map: &mut HashSet<(i64, i64)>, shape: &[(i64, i64)], dirs: &mut D) {
+fn drop<D: Iterator<Item=i64>>(map: &mut Map, shape: &[(i64, i64)], dirs: &mut D) -> i64 {
     let shapewid = shape.iter().map(|&(x, _)| x).max().unwrap() - 0 + 1; // min always 0
-    let (mut x, mut y) = (LAUNCH_X, map_height(map) + LAUNCH_Y);
-    let rocks_ok = |nx, ny| shape.iter().all(|&(sx, sy)| !map.contains(&(nx + sx, ny + sy)));
+    let shapehei = shape.iter().map(|&(_, y)| y).max().unwrap() - 0 + 1; // min always 0
+    let (mut x, mut y) = (LAUNCH_X, map.1 + LAUNCH_Y);
+    let rocks_ok = |nx, ny| shape.iter().all(|&(sx, sy)| !map.0.contains(&(nx + sx, ny + sy)));
     loop {
         // move left or right one step
         let dx = dirs.next().unwrap();
@@ -53,8 +50,11 @@ fn drop<D: Iterator<Item=i64>>(map: &mut HashSet<(i64, i64)>, shape: &[(i64, i64
     }
 
     for &(sx, sy) in shape.iter() {
-        map.insert((x + sx, y + sy));
+        map.0.insert((x + sx, y + sy));
     }
+    let m1 = map.1;
+    map.1 = map.1.max(y + shapehei - 1);
+    map.1 - m1
 }
 
 struct CycledSignal<T>(Vec<T>);
@@ -134,28 +134,24 @@ fn end_height(directions: &[i64], rocks_limit: usize) -> i64 {
         ],
     ];
 
-    let mut map: HashSet<(i64, i64)> = HashSet::new();
+    let mut map = Map(HashSet::new(), 0);
     let mut dirs = directions.iter().copied().cycle();
-    let mut prev_height = 0;
     let mut signal = CycledSignal::new();
 
     for (i, shape) in (0..rocks_limit).zip(shapes.iter().cycle()) {
-        drop(&mut map, shape, &mut dirs);
-        let new_height = map_height(&map);
         // signal for the cycle: number of height increments per iteration
-        if let Some(cycle) = signal.feed_and_test(new_height - prev_height) {
-            return new_height + cycle.extrapolate(i + 1, rocks_limit);
+        let height_increase = drop(&mut map, shape, &mut dirs);
+        if let Some(cycle) = signal.feed_and_test(height_increase) {
+            return map.1 + cycle.extrapolate(i + 1, rocks_limit);
         }
-        prev_height = new_height;
 
         if false {
-            println!("at {} hei {}", i, map_height(&map));
-            render(&map);
+            render(&map.0);
             println!();
         }
     }
 
-    map_height(&map)
+    map.1
 }
 
 fn main() {
