@@ -57,6 +57,55 @@ fn drop<D: Iterator<Item=i64>>(map: &mut HashSet<(i64, i64)>, shape: &[(i64, i64
     }
 }
 
+struct CycledSignal<T>(Vec<T>);
+
+struct Cycle<'a, T>(usize, &'a [T]);
+
+impl<T: Eq>
+CycledSignal<T> {
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    fn test(&self, window: usize, n: usize) -> bool {
+        if window * n == 0 || self.0.len() < window * n {
+            false
+        } else {
+            // sanity check: len 8, 4 windows of size 2 each, windows begin at 0
+            let begin = &self.0[self.0.len() - n * window..];
+            (0..n-1).all(|i| {
+                let left  = &begin[(i+0) * window..(i+1) * window];
+                let right = &begin[(i+1) * window..(i+2) * window];
+                left == right
+            })
+        }
+    }
+
+    fn feed_and_test<'a>(&'a mut self, v: T) -> Option<Cycle<'a, T>> {
+        // now a cycle, if any, ends at this index; another begins at len()
+        self.0.push(v);
+        // test at least a few cycles to be sure, maybe a big cycle includes subcycles?
+        // also ignore the first half to allow the signal to settle
+        let four = (self.0.len() / 2) / 4;
+        let three = (self.0.len() / 2) / 3;
+        (four..three)
+            .find(|&len| self.test(len, 3))
+            .map(|len| Cycle(len, &self.0[self.0.len() - len ..]))
+    }
+}
+
+impl<'a, T: Copy + From<i64> + std::ops::Add<Output = T> + std::ops::Mul<Output = T> + std::iter::Sum>
+Cycle<'a, T> {
+    // the part between [start, end]
+    fn extrapolate(&'a self, start: usize, end: usize) -> T {
+        let ncycles = (end - start) / self.0;
+        let remaining = (end - start) % self.0;
+
+        T::from(ncycles as i64) * self.1.iter().copied().sum::<T>()
+            + self.1.iter().copied().take(remaining).sum::<T>()
+    }
+}
+
 fn end_height(directions: &[i64], rocks_limit: usize) -> i64 {
     // left and bottom is 0; x goes right, y goes up
     let shapes: [&[(i64, i64)]; 5] = [
@@ -87,9 +136,18 @@ fn end_height(directions: &[i64], rocks_limit: usize) -> i64 {
 
     let mut map: HashSet<(i64, i64)> = HashSet::new();
     let mut dirs = directions.iter().copied().cycle();
+    let mut prev_height = 0;
+    let mut signal = CycledSignal::new();
 
     for (i, shape) in (0..rocks_limit).zip(shapes.iter().cycle()) {
         drop(&mut map, shape, &mut dirs);
+        let new_height = map_height(&map);
+        // signal for the cycle: number of height increments per iteration
+        if let Some(cycle) = signal.feed_and_test(new_height - prev_height) {
+            return new_height + cycle.extrapolate(i + 1, rocks_limit);
+        }
+        prev_height = new_height;
+
         if false {
             println!("at {} hei {}", i, map_height(&map));
             render(&map);
@@ -111,4 +169,5 @@ fn main() {
         })
         .collect();
     println!("{}", end_height(&directions, 2022));
+    println!("{}", end_height(&directions, 1000000000000));
 }
