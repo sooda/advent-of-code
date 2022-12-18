@@ -12,21 +12,16 @@ const CUBE_NEIGHBOR_COORDS: &[Cube; 6] = &[
     ( 0,  0,  1),
 ];
 
-fn sides_exposed(cubes: &HashSet<Cube>, this: Cube) -> usize {
-    CUBE_NEIGHBOR_COORDS.iter().filter(|d| {
-        !cubes.contains(&(this.0 + d.0, this.1 + d.1, this.2 + d.2))
+fn count_matching_sides<F: Fn(Cube) -> bool>(this: Cube, f: F) -> usize {
+    CUBE_NEIGHBOR_COORDS.iter().filter(|&d| {
+        f((this.0 + d.0, this.1 + d.1, this.2 + d.2))
     }).count()
 }
 
-fn sides_exposed_to_gas(gas: &HashSet<Cube>, this: Cube) -> usize {
-    CUBE_NEIGHBOR_COORDS.iter().filter(|d| {
-        gas.contains(&(this.0 + d.0, this.1 + d.1, this.2 + d.2))
-    }).count()
-}
-
-fn surface_area(cubes: &[Cube]) -> usize {
-    let cubes: HashSet<_> = cubes.iter().copied().collect();
-    cubes.iter().map(|&c| sides_exposed(&cubes, c)).sum()
+fn surface_area(cubes: &HashSet<Cube>) -> usize {
+    cubes.iter().map(|&c| {
+        count_matching_sides(c, |d| !cubes.contains(&d))
+    }).sum()
 }
 
 fn flood_fill_one(cubes: &HashSet<Cube>, exterior: &mut HashSet<Cube>, extents: (Cube, Cube), pos: Cube) {
@@ -42,13 +37,14 @@ fn flood_fill_one(cubes: &HashSet<Cube>, exterior: &mut HashSet<Cube>, extents: 
     if pos.0 > extents.1.0 || pos.1 > extents.1.1 || pos.2 > extents.1.2 {
         return;
     }
+
     exterior.insert(pos);
     for d in CUBE_NEIGHBOR_COORDS {
         flood_fill_one(cubes, exterior, extents, (pos.0 + d.0, pos.1 + d.1, pos.2 + d.2));
     }
 }
 
-fn flood_fill(cubes: &[Cube]) -> HashSet<Cube> {
+fn flood_fill(cubes: &HashSet<Cube>) -> HashSet<Cube> {
     let minx = cubes.iter().map(|(x, _, _)| x).min().unwrap();
     let maxx = cubes.iter().map(|(x, _, _)| x).max().unwrap();
     let miny = cubes.iter().map(|(_, y, _)| y).min().unwrap();
@@ -57,14 +53,15 @@ fn flood_fill(cubes: &[Cube]) -> HashSet<Cube> {
     let maxz = cubes.iter().map(|(_, _, z)| z).max().unwrap();
     let extents = ((minx - 1, miny - 1, minz - 1), (maxx + 1, maxy + 1, maxz + 1));
         let mut exterior = HashSet::new();
-    let cubes: HashSet<_> = cubes.iter().copied().collect();
-    flood_fill_one(&cubes, &mut exterior, extents, extents.0);
+    flood_fill_one(cubes, &mut exterior, extents, extents.0);
     exterior
 }
 
-fn exterior_surface_area(cubes: &[Cube]) -> usize {
+fn exterior_surface_area(cubes: &HashSet<Cube>) -> usize {
     let gas = flood_fill(cubes);
-    cubes.iter().map(|&c| sides_exposed_to_gas(&gas, c)).sum()
+    cubes.iter().map(|&c| {
+        count_matching_sides(c, |d| gas.contains(&d))
+    }).sum()
 }
 
 fn parse_cube(line: &str) -> Cube {
@@ -73,7 +70,7 @@ fn parse_cube(line: &str) -> Cube {
 }
 
 fn main() {
-    let cubes: Vec<_> = io::stdin().lock().lines()
+    let cubes: HashSet<_> = io::stdin().lock().lines()
         .map(|line| parse_cube(&line.unwrap()))
         .collect();
     println!("{}", surface_area(&cubes));
