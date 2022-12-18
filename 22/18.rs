@@ -12,9 +12,17 @@ const CUBE_NEIGHBOR_COORDS: &[Cube; 6] = &[
     ( 0,  0,  1),
 ];
 
+fn sum(a: Cube, b: Cube) -> Cube {
+    (a.0 + b.0, a.1 + b.1, a.2 + b.2)
+}
+
+fn less(a: Cube, b: Cube) -> bool {
+    a.0 < b.0 || a.1 < b.1 || a.2 < b.2
+}
+
 fn count_matching_sides<F: Fn(Cube) -> bool>(this: Cube, f: F) -> usize {
-    CUBE_NEIGHBOR_COORDS.iter().filter(|&d| {
-        f((this.0 + d.0, this.1 + d.1, this.2 + d.2))
+    CUBE_NEIGHBOR_COORDS.iter().filter(|&&d| {
+        f(sum(this, d))
     }).count()
 }
 
@@ -31,27 +39,31 @@ fn flood_fill_one(cubes: &HashSet<Cube>, exterior: &mut HashSet<Cube>, extents: 
     if cubes.contains(&pos) {
         return;
     }
-    if pos.0 < extents.0.0 || pos.1 < extents.0.1 || pos.2 < extents.0.2 {
+    if less(pos, extents.0) {
         return;
     }
-    if pos.0 > extents.1.0 || pos.1 > extents.1.1 || pos.2 > extents.1.2 {
+    if less(extents.1, pos) {
         return;
     }
 
     exterior.insert(pos);
-    for d in CUBE_NEIGHBOR_COORDS {
-        flood_fill_one(cubes, exterior, extents, (pos.0 + d.0, pos.1 + d.1, pos.2 + d.2));
+    for &d in CUBE_NEIGHBOR_COORDS {
+        flood_fill_one(cubes, exterior, extents, sum(pos, d));
     }
 }
 
 fn flood_fill(cubes: &HashSet<Cube>) -> HashSet<Cube> {
-    let minx = cubes.iter().map(|(x, _, _)| x).min().unwrap();
-    let maxx = cubes.iter().map(|(x, _, _)| x).max().unwrap();
-    let miny = cubes.iter().map(|(_, y, _)| y).min().unwrap();
-    let maxy = cubes.iter().map(|(_, y, _)| y).max().unwrap();
-    let minz = cubes.iter().map(|(_, _, z)| z).min().unwrap();
-    let maxz = cubes.iter().map(|(_, _, z)| z).max().unwrap();
-    let extents = ((minx - 1, miny - 1, minz - 1), (maxx + 1, maxy + 1, maxz + 1));
+    let min = (
+        cubes.iter().map(|&(x, _, _)| x).min().unwrap(),
+        cubes.iter().map(|&(_, y, _)| y).min().unwrap(),
+        cubes.iter().map(|&(_, _, z)| z).min().unwrap(),
+    );
+    let max = (
+        cubes.iter().map(|&(x, _, _)| x).max().unwrap(),
+        cubes.iter().map(|&(_, y, _)| y).max().unwrap(),
+        cubes.iter().map(|&(_, _, z)| z).max().unwrap(),
+    );
+    let extents = (sum(min, (-1, -1, -1)), sum(max, (1, 1, 1)));
         let mut exterior = HashSet::new();
     flood_fill_one(cubes, &mut exterior, extents, extents.0);
     exterior
