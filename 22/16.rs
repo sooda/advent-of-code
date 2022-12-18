@@ -65,10 +65,12 @@ impl std::fmt::Debug for OpenMap {
 // timeleft nopened steamed: 1.5s
 // timeleft dominates, needs to be before steamed
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+// like distance when reached this node, but bigger means better
+// time, vent opening and steaming happens during the travel on an edge
 struct Score {
-    timeleft: i64,
-    nopened: usize,
-    steamed: i64, // not including steam from this node
+    timeleft: i64, // when entering this state; 0 when there's nothing to do
+    nopened: usize, // also, opened before this state
+    steamed: i64, // also, when entering this state
 }
 
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd, Hash)]
@@ -111,6 +113,7 @@ fn dijkstra(valves: &[Valve], startidx: usize) -> i64 {
         let (score, node) = (state.score, state.node);
         let max_possible_vent = score.timeleft * good_valves.len() as i64;
 
+        // goal is max possible vent
         if score.steamed + max_possible_vent <= best {
             return;
         }
@@ -222,6 +225,7 @@ fn dijkstra_with_elephant(valves: &[Valve], startidx: usize) -> i64 {
         let (score, node) = (state.score, state.node);
         let max_possible_vent = score.timeleft * good_valves.len() as i64;
 
+        // goal is max possible vent
         if score.steamed + max_possible_vent <= best {
             return;
         }
@@ -271,28 +275,21 @@ fn dijkstra_with_elephant(valves: &[Valve], startidx: usize) -> i64 {
         let timeleft = score.timeleft - 1;
 
         if timeleft >= 0 {
-            // can not move and not open, but cannot move and open in a single round
-            for &(self_move, self_open, elep_move, elep_open) in &[
-                // both do nothing is not a useful condition
-                /* (false, false, false, false), */
-                (false, true, false, false),
-                (true, false, false, false),
-
-                (false, false, false, true),
-                (false, true, false, true),
-                (true, false, false, true),
-
-                (false, false, true, false),
-                (false, true, true, false),
-                (true, false, true, false),
+            // both main characters either move elsewhere or open the valve they're at.
+            // "opening" an opened valve may happen; that just means to sit tight.
+            // TODO: doing nothing is meaningful only if there's nothing else to do
+            for &(self_move, elep_move) in &[
+                (false, false),
+                (false, true),
+                (true, false),
+                (true, true),
             ] {
-                let self_open = self_open && good_valves.is_open(node.vidx);
-                let elep_open = elep_open && good_valves.is_open(node.elephant);
+                // can be already open, but kept simple for now
                 let mut vstates = node.vstates;
-                if self_open {
+                if !self_move && good_valves.is_open(node.vidx) {
                     vstates = vstates.open(node.vidx);
                 }
-                if elep_open {
+                if !elep_move && good_valves.is_open(node.elephant) {
                     vstates = vstates.open(node.elephant);
                 }
                 let nopened = vstates.and(good_valves).len();
@@ -301,6 +298,7 @@ fn dijkstra_with_elephant(valves: &[Valve], startidx: usize) -> i64 {
                     nopened,
                     timeleft,
                 };
+
                 if !self_move && !elep_move {
                     // steam this ham in particular
                     push(&mut heap, State {
