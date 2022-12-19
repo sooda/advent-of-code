@@ -86,7 +86,7 @@ fn crack_geodes(bp: &Blueprint, state: State, best: &mut i16, visited: &mut Hash
     }
 }
 
-fn quality_level(bp: &Blueprint, max_time: i16) -> i16 {
+fn best_score(bp: &Blueprint, max_time: i16) -> i16 {
     let state = State {
         bots: [1, 0, 0, 0],
         store: [0, 0, 0, 0],
@@ -102,11 +102,22 @@ fn quality_level(bp: &Blueprint, max_time: i16) -> i16 {
         std::i16::MAX,
     ];
     crack_geodes(bp, state, &mut best, &mut HashSet::new(), bot_limit_heuristic);
-    bp.id_num * best
+    best
+}
+
+fn quality_level(bp: &Blueprint, max_time: i16) -> i16 {
+    bp.id_num * best_score(bp, max_time)
 }
 
 fn quality_level_sum(blueprints: &[Blueprint]) -> i16 {
     blueprints.iter().map(|bp| quality_level(bp, 24)).sum()
+}
+
+fn first_three(blueprints: &[Blueprint]) -> i64 {
+    blueprints.iter()
+        .take(3)
+        .map(|bp| best_score(bp, 32))
+        .fold(1i64, |acc, x| acc * (x as i64))
 }
 
 fn parse_blueprint(line: &str) -> Blueprint {
@@ -136,5 +147,8 @@ fn main() {
     let blueprints: Vec<_> = io::stdin().lock().lines()
         .map(|line| parse_blueprint(&line.unwrap()))
         .collect();
-    println!("{}", quality_level_sum(&blueprints));
+    if true {
+        println!("{}", quality_level_sum(&blueprints));
+    }
+    println!("{}", first_three(&blueprints));
 }
