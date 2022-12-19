@@ -65,8 +65,19 @@ fn crack_geodes(bp: &Blueprint, state: State, best: &mut i16, visited: &mut Hash
     }
 
     for bot in 0..4 {
+        // if there's money for a geode bot, only build a geode bot
+        if has_money(&state.store, &bp.costs[GEODE]) && bot != GEODE {
+            continue;
+        }
+
+        // obsidian is really useful for geode bots, so ignore the rest if possible
+        if bot != GEODE && (has_money(&state.store, &bp.costs[OBSIDIAN]) && bot != OBSIDIAN) {
+            continue;
+        }
+
         // don't build too many bots
         let limit_reached = state.bots[bot] == bot_limit[bot];
+
         if has_money(&state.store, &bp.costs[bot]) && !limit_reached {
             let mut state = state.clone();
             sub(&mut state.store, &bp.costs[bot]);
@@ -77,8 +88,8 @@ fn crack_geodes(bp: &Blueprint, state: State, best: &mut i16, visited: &mut Hash
         }
     }
 
-    // build nothing
-    {
+    // build nothing unless it's geode time
+    if !has_money(&state.store, &bp.costs[GEODE]) {
         let mut state = state.clone();
         add(&mut state.store, &state.bots);
         state.time_remaining -= 1;
