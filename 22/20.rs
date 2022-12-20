@@ -17,16 +17,19 @@ fn _insert_before(links: &mut [(usize, usize)], pos: usize, link: usize) {
     insert_after(links, links[pos].0, link);
 }
 
+fn list_nth(links: &[(usize, usize)], mut link: usize, steps: usize) -> usize {
+    for _ in 0..steps {
+        link = links[link].1;
+    }
+    link
+}
+
 fn move_right(links: &mut [(usize, usize)], src: usize, steps: usize) {
     if steps == 0 {
         // unlink and insert like that not compatible with moving to itself
         return;
     }
-    let mut after = src;
-    for _ in 0..steps {
-        // move B one right: a B c d -> a c B d
-        after = links[after].1;
-    }
+    let after = list_nth(links, src, steps);
     unlink(links, src);
     insert_after(links, after, src);
 }
@@ -100,9 +103,7 @@ fn mix_result(file: &[i64], mixes: usize) -> i64 {
     let mut pos = file.iter().position(|&n| n == 0).unwrap();
     let mut ret = 0;
     for _ in 0..3 {
-        for _ in 0..1000 {
-            pos = links[pos].1;
-        }
+        pos = list_nth(&links, pos, 1000);
         ret += file[pos];
     }
 
