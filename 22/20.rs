@@ -13,7 +13,7 @@ fn insert_after(links: &mut [(usize, usize)], pos: usize, link: usize) {
     links[link] = (left, right);
 }
 
-fn insert_before(links: &mut [(usize, usize)], pos: usize, link: usize) {
+fn _insert_before(links: &mut [(usize, usize)], pos: usize, link: usize) {
     insert_after(links, links[pos].0, link);
 }
 
@@ -29,20 +29,6 @@ fn move_right(links: &mut [(usize, usize)], src: usize, steps: usize) {
     }
     unlink(links, src);
     insert_after(links, after, src);
-}
-
-fn move_left(links: &mut [(usize, usize)], src: usize, steps: usize) {
-    if steps == 0 {
-        return;
-    }
-    let mut before = src;
-    for _ in 0..steps {
-        // move C one left: a b C d -> a C b d
-        // same as moving b right though, but this is more self-documenting
-        before = links[before].0;
-    }
-    unlink(links, src);
-    insert_before(links, before, src);
 }
 
 fn print_list(file: &[i64], links: &[(usize, usize)]) {
@@ -86,13 +72,15 @@ fn mix(file: &[i64], mut links: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
     }
 
     for i in 0..file.len() {
-        if file[i] == 0 {
-            continue;
-        } else if file[i] > 0 {
-            move_right(&mut links, i, (file[i] as usize) % (file.len() - 1));
-        } else { /* < 0 */
-            move_left(&mut links, i, ((-file[i]) as usize) % (file.len() - 1));
-        }
+        let right = if file[i] >= 0 {
+            (file[i] as usize) % (file.len() - 1)
+        } else {
+            let left = ((-file[i]) as usize) % (file.len() - 1);
+            // cyclic, and moving n-1 moves a full cycle etc
+            // e.g. len six: 0 1 _2_ 3 4 5 two left = three right: _2_ 0 1 3 4 5
+            file.len() - left - 1
+        };
+        move_right(&mut links, i, right);
 
         if false {
             print_list(file, &links);
