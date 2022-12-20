@@ -18,21 +18,31 @@ fn insert_before(links: &mut [(usize, usize)], pos: usize, link: usize) {
 }
 
 fn move_right(links: &mut [(usize, usize)], src: usize, steps: usize) {
-    // So done with off-by-one bugs this morning, so this is as stupid as it gets
+    if steps == 0 {
+        // unlink and insert like that not compatible with moving to itself
+        return;
+    }
+    let mut after = src;
     for _ in 0..steps {
         // move B one right: a B c d -> a c B d
-        unlink(links, src);
-        insert_after(links, links[src].1, src);
+        after = links[after].1;
     }
+    unlink(links, src);
+    insert_after(links, after, src);
 }
 
 fn move_left(links: &mut [(usize, usize)], src: usize, steps: usize) {
+    if steps == 0 {
+        return;
+    }
+    let mut before = src;
     for _ in 0..steps {
         // move C one left: a b C d -> a C b d
         // same as moving b right though, but this is more self-documenting
-        unlink(links, src);
-        insert_before(links, links[src].0, src);
+        before = links[before].0;
     }
+    unlink(links, src);
+    insert_before(links, before, src);
 }
 
 fn print_list(file: &[i64], links: &[(usize, usize)]) {
