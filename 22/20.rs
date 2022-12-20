@@ -13,7 +13,7 @@ fn insert_after(links: &mut [(usize, usize)], pos: usize, link: usize) {
     links[link] = (left, right);
 }
 
-fn _insert_before(links: &mut [(usize, usize)], pos: usize, link: usize) {
+fn insert_before(links: &mut [(usize, usize)], pos: usize, link: usize) {
     insert_after(links, links[pos].0, link);
 }
 
@@ -25,13 +25,10 @@ fn list_nth(links: &[(usize, usize)], mut link: usize, steps: usize) -> usize {
 }
 
 fn move_right(links: &mut [(usize, usize)], src: usize, steps: usize) {
-    if steps == 0 {
-        // unlink and insert like that not compatible with moving to itself
-        return;
-    }
     let after = list_nth(links, src, steps);
+    let before = links[after].1; // manage also steps == 0 branchless
     unlink(links, src);
-    insert_after(links, after, src);
+    insert_before(links, before, src);
 }
 
 fn print_list(file: &[i64], links: &[(usize, usize)]) {
