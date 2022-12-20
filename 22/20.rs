@@ -45,7 +45,18 @@ fn print_list(file: &[i64], links: &[(usize, usize)]) {
     println!();
 }
 
-fn mix(file: &mut Vec<i64>) -> Vec<(usize, usize)> {
+fn basic_links(n: usize) -> Vec<(usize, usize)> {
+    let mut links = vec![(0usize, 0usize); n];
+    for i in 0..n {
+        links[i] = (
+            (i + n - 1) % n,
+            (i + 1) % n
+        );
+    }
+    links
+}
+
+fn mix(file: &[i64], mut links: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
     /*
      *           ->
      * 4, 5, 6, 1, 7, 8, 9
@@ -58,13 +69,6 @@ fn mix(file: &mut Vec<i64>) -> Vec<(usize, usize)> {
      */
 
     // links[i] is prev and next pointers for the ith number in the orig list
-    let mut links = vec![(0usize, 0usize); file.len()];
-    for i in 0..file.len() {
-        links[i] = (
-            (i + file.len() - 1) % file.len(),
-            (i + 1) % file.len()
-        );
-    }
 
     if false {
         println!("initial:");
@@ -75,9 +79,9 @@ fn mix(file: &mut Vec<i64>) -> Vec<(usize, usize)> {
         if file[i] == 0 {
             continue;
         } else if file[i] > 0 {
-            move_right(&mut links, i, file[i] as usize);
+            move_right(&mut links, i, (file[i] as usize) % (file.len() - 1));
         } else { /* < 0 */
-            move_left(&mut links, i, (-file[i]) as usize);
+            move_left(&mut links, i, ((-file[i]) as usize) % (file.len() - 1));
         }
 
         if false {
@@ -88,8 +92,12 @@ fn mix(file: &mut Vec<i64>) -> Vec<(usize, usize)> {
     links
 }
 
-fn mix_result(mut file: Vec<i64>) -> i64 {
-    let links = mix(&mut file);
+fn mix_result(file: &[i64], mixes: usize) -> i64 {
+    let mut links = basic_links(file.len());
+    for _ in 0..mixes {
+        let next_links = mix(file, links);
+        links = next_links;
+    }
 
     let mut pos = file.iter().position(|&n| n == 0).unwrap();
     let mut ret = 0;
@@ -103,9 +111,15 @@ fn mix_result(mut file: Vec<i64>) -> i64 {
     ret
 }
 
+fn mix_result_keyed(file: &mut [i64]) -> i64 {
+    file.iter_mut().for_each(|x| *x *= 811589153);
+    mix_result(file, 10)
+}
+
 fn main() {
-    let file: Vec<i64> = io::stdin().lock().lines()
+    let mut file: Vec<i64> = io::stdin().lock().lines()
         .map(|line| line.unwrap().parse().unwrap())
         .collect();
-    println!("{}", mix_result(file));
+    println!("{}", mix_result(&file, 1));
+    println!("{}", mix_result_keyed(&mut file));
 }
