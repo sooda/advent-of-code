@@ -72,10 +72,7 @@ fn wrap_cube(map: &Map, pos: Coords, dir: Coords) -> (Coords, Coords) {
     let fullturn = ((-1, 0), (0, -1));
     let turn_ccw = ((0, 1), (-1, 0)); // prev y becomes x, prev x becomes -y
     let turn_cw = ((0, -1), (1, 0)); // prev x becomes y, prev y becomes -x
-    // Tform: (dest face index, edge axis rot matrix, offset of origin of new axis)
-    // (could also use homogeneous coordinates for just one matrix...)
-    // newpos = dest_face_origin + axis_rotate(src_faceoff - src_ax_offset) + dest_ax_offset
-    // src_ax_offset derived from exit direction to avoid redundancy
+    let noop = ((1, 0), (0, 1));
     type Tform = Option<(Coords, Mat, Coords)>;
     let facesize = match map.len() {
         96 /* 6*4*4 */ => 4,
@@ -126,7 +123,44 @@ fn wrap_cube(map: &Map, pos: Coords, dir: Coords) -> (Coords, Coords) {
                 Some(((2, 1), turn_ccw, (0, faceend))),
             )),
         ],
-        15000 /* 6*50*50 */ => vec![],
+        15000 /* 6*50*50 */ => vec![
+            ((1, 0), (
+                None,
+                Some(((0, 2), fullturn, (0, faceend))),
+                None,
+                Some(((0, 3), turn_cw, (0, 0))),
+            )),
+            ((2, 0), (
+                Some(((1, 2), fullturn, (faceend, faceend))),
+                None,
+                Some(((1, 1), turn_cw, (faceend, 0))),
+                Some(((0, 3), noop, (0, faceend))),
+            )),
+            ((1, 1), (
+                Some(((2, 0), turn_ccw, (0, faceend))),
+                Some(((0, 2), turn_ccw, (0, 0))),
+                None,
+                None,
+            )),
+            ((0, 2), (
+                None,
+                Some(((1, 0), fullturn, (0, faceend))),
+                None,
+                Some(((1, 1), turn_cw, (0, 0))),
+            )),
+            ((1, 2), (
+                Some(((2, 0), fullturn, (faceend, faceend))),
+                None,
+                Some(((0, 3), turn_cw, (faceend, 0))),
+                None,
+            )),
+            ((0, 3), (
+                Some(((1, 2), turn_ccw, (0, faceend))),
+                Some(((1, 0), turn_ccw, (0, 0))),
+                Some(((2, 0), noop, (0, 0))),
+                None,
+            )),
+        ],
         _ => panic!("unusual input"),
     };
     // note: x,y at the edge, not necessarily overlapping major axes of the face (at 0,0)
@@ -145,11 +179,16 @@ fn wrap_cube(map: &Map, pos: Coords, dir: Coords) -> (Coords, Coords) {
     };
     // make src coords run along an axis on the edge so the rotation just works
     let src_edgeoff = sub(src_faceoff, src_ax_offset);
+    assert!(src_edgeoff.0 == 0 || src_edgeoff.1 == 0);
 
     let (dest_faceidx, axisrotate, dest_ax_offset) = tform;
     let dest_face_origin = scale(dest_faceidx, (facesize, facesize));
 
     let dest_faceoff = add(matmul(axisrotate, src_edgeoff), dest_ax_offset);
+    assert!(dest_faceoff.0 >= 0);
+    assert!(dest_faceoff.0 < facesize);
+    assert!(dest_faceoff.1 >= 0);
+    assert!(dest_faceoff.1 < facesize);
 
     let finalpos = add(dest_face_origin, dest_faceoff);
     let finaldir = matmul(axisrotate, dir);
