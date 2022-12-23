@@ -82,20 +82,23 @@ fn print_elves(elves: &Elves) {
     }
 }
 
-fn play_rounds(mut elves: Elves, rounds: usize) -> Elves {
+fn play_rounds(mut elves: Elves, rounds: usize, steady_stop: bool) -> (Elves, usize) {
     for r in 0..rounds {
-        let next_elves = one_round(elves, r);
+        let next_elves = one_round(elves.clone(), r);
+        if steady_stop && elves == next_elves {
+            return (elves, 1 + r);
+        }
         elves = next_elves;
         if false {
-            println!("end of round {}", r+1);
+            println!("end of round {}", 1 + r);
             print_elves(&elves);
         }
     }
-    elves
+    (elves, rounds)
 }
 
 fn empty_files_after(elves: Elves, rounds: usize) -> usize {
-    let elves = play_rounds(elves, rounds);
+    let elves = play_rounds(elves, rounds, false).0;
 
     let minx = elves.iter().min_by_key(|&e| e.0).unwrap().0;
     let maxx = elves.iter().max_by_key(|&e| e.0).unwrap().0;
@@ -105,6 +108,10 @@ fn empty_files_after(elves: Elves, rounds: usize) -> usize {
     let h = maxy - miny + 1;
 
     (w * h) as usize - elves.len()
+}
+
+fn rounds_needed(elves: Elves) -> usize {
+    play_rounds(elves, std::usize::MAX, true).1
 }
 
 fn parse_elves(lines: &[String]) -> Elves {
@@ -120,5 +127,6 @@ fn parse_elves(lines: &[String]) -> Elves {
 fn main() {
     let lines: Vec<_> = io::stdin().lock().lines().map(|l| l.unwrap()).collect();
     let elves = parse_elves(&lines);
-    println!("{}", empty_files_after(elves, 10));
+    println!("{}", empty_files_after(elves.clone(), 10));
+    println!("{}", rounds_needed(elves));
 }
