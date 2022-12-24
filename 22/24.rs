@@ -88,13 +88,15 @@ impl Map {
 
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 struct Score {
+    // consumed time, smaller better
+    minutes: Reverse<i32>,
     // heuristic distance, not actual; just to make the heap prioritize spots close to goal
     dist_to_goal: Reverse<i32>,
 }
 
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd, Hash)]
 struct Node {
-    minutes: Reverse<i32>, // consumed time; smaller is better
+    minutes: Reverse<i32>, // just the third axis in the world map
     pos: Coords, // expedition is too hard to type this morning
 }
 
@@ -111,7 +113,7 @@ fn distance(a: Coords, b: Coords) -> i32 {
 
 fn dijkstra(map: &Map, entry_pos: Coords, exit_pos: Coords, entry_minutes: i32) -> i32 {
     let debug = false;
-    let startscore = Score { dist_to_goal: Reverse(distance(exit_pos, entry_pos)) };
+    let startscore = Score { minutes: Reverse(0), dist_to_goal: Reverse(distance(exit_pos, entry_pos)) };
     let startnode = Node { minutes: Reverse(entry_minutes), pos: entry_pos };
     let mut heap: BinaryHeap<State> = BinaryHeap::new();
     let mut visited = HashSet::new();
@@ -146,6 +148,8 @@ fn dijkstra(map: &Map, entry_pos: Coords, exit_pos: Coords, entry_minutes: i32) 
         }
 
         if score.dist_to_goal.0 == 0 {
+            // the first found goal is the best one though,
+            // could return right away
             best_minutes = best_minutes.min(node.minutes.0);
             if debug {
                 println!("found a goal of {}", best_minutes);
@@ -162,6 +166,7 @@ fn dijkstra(map: &Map, entry_pos: Coords, exit_pos: Coords, entry_minutes: i32) 
             if special || (!out && blizzard_free) {
                 push(&mut heap, State {
                     score: Score {
+                        minutes: Reverse(node.minutes.0 + 1),
                         dist_to_goal: Reverse(distance(exit_pos, nextpos)),
                     },
                     node: Node {
