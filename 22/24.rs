@@ -110,12 +110,10 @@ fn distance(a: Coords, b: Coords) -> i32 {
     (a.0 - b.0).abs() + (a.1 - b.1).abs()
 }
 
-fn dijkstra(map: &Map) -> i32 {
-    let entry_pos = (0, -1);
-    let exit_pos = (map.ground_size.0 - 1, map.ground_size.1);
+fn dijkstra(map: &Map, entry_pos: Coords, exit_pos: Coords, entry_minutes: i32) -> i32 {
     let debug = false;
     let startscore = Score { dist_to_goal: Reverse(distance(exit_pos, entry_pos)) };
-    let startnode = Node { minutes: Reverse(0), pos: entry_pos };
+    let startnode = Node { minutes: Reverse(entry_minutes), pos: entry_pos };
     let mut heap: BinaryHeap<State> = BinaryHeap::new();
     let mut visited = HashSet::new();
     heap.push(State { score: startscore, node: startnode });
@@ -159,8 +157,7 @@ fn dijkstra(map: &Map) -> i32 {
 
         for nextpos in next_delta.iter().map(|&d| sum(node.pos, d)) {
             if map.out_of_bounds(nextpos) && !(
-                    nextpos == exit_pos
-                    || (node.minutes.0 == 0 && node.pos == entry_pos)) {
+                    nextpos == exit_pos || nextpos == entry_pos) {
                 continue;
             }
 
@@ -182,7 +179,16 @@ fn dijkstra(map: &Map) -> i32 {
 }
 
 fn fewest_minutes(map: &Map) -> i32 {
-    dijkstra(map)
+    dijkstra(map, (0, -1), (map.ground_size.0 - 1, map.ground_size.1), 0)
+}
+
+fn fewest_minutes_with_snacks(map: &Map) -> i32 {
+    let start = (0, -1);
+    let goal = (map.ground_size.0 - 1, map.ground_size.1);
+    let there = dijkstra(map, start, goal, 0);
+    let back = dijkstra(map, goal, start, there);
+    let there_again = dijkstra(map, start, goal, back);
+    there_again
 }
 
 fn parse_map(lines: &[String]) -> Map {
@@ -223,4 +229,5 @@ fn main() {
         map.print(0, (0, -1));
     }
     println!("{}", fewest_minutes(&map));
+    println!("{}", fewest_minutes_with_snacks(&map));
 }
