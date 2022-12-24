@@ -9,7 +9,7 @@ fn sum(a: Coords, b: Coords) -> Coords {
     (a.0 + b.0, a.1 + b.1)
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum Dir {
     Right,
     Left,
@@ -45,14 +45,13 @@ impl Map {
     }
 
     fn empty_cell(&self, pos: Coords, time: i32) -> bool {
-        // FIXME: store per row and per col separately; needs more space but is faster to index
-        let row_safe = self.blizs.iter()
-            .filter(|(bpos, _)| bpos.1 == pos.1)
-            .all(|(&bpos, &bdir)| self.bliz_at(bpos, bdir, time) != pos);
-        let col_safe = self.blizs.iter()
-            .filter(|(bpos, _)| bpos.0 == pos.0)
-            .all(|(&bpos, &bdir)| self.bliz_at(bpos, bdir, time) != pos);
-        row_safe && col_safe
+        // move the player instead of the blizzards to check for collision:
+        // check if someone is heading at us in the past
+        let safe_left  = self.blizs.get(&self.bliz_at(pos, Left,  time)) != Some(&Right);
+        let safe_right = self.blizs.get(&self.bliz_at(pos, Right, time)) != Some(&Left);
+        let safe_up    = self.blizs.get(&self.bliz_at(pos, Up,    time)) != Some(&Down);
+        let safe_down  = self.blizs.get(&self.bliz_at(pos, Down,  time)) != Some(&Up);
+        safe_left && safe_right && safe_up && safe_down
     }
 
     fn print(&self, time: i32, expedition: Coords) {
@@ -141,8 +140,8 @@ fn dijkstra(map: &Map, entry_pos: Coords, exit_pos: Coords, entry_minutes: i32) 
     while let Some(state) = heap.pop() {
         let (score, node) = (state.score, state.node);
         if debug {
-            println!("visit {:?} minutes {} goaldist {}",
-                     node.pos, node.minutes.0, score.dist_to_goal.0);
+            println!("visit {:?} minutes {} goaldist {}, going to {:?}",
+                     node.pos, node.minutes.0, score.dist_to_goal.0, exit_pos);
             map.print(node.minutes.0, node.pos);
         }
 
@@ -156,12 +155,11 @@ fn dijkstra(map: &Map, entry_pos: Coords, exit_pos: Coords, entry_minutes: i32) 
         }
 
         for nextpos in next_delta.iter().map(|&d| sum(node.pos, d)) {
-            if map.out_of_bounds(nextpos) && !(
-                    nextpos == exit_pos || nextpos == entry_pos) {
-                continue;
-            }
+            let special = nextpos == exit_pos || nextpos == entry_pos;
+            let out = map.out_of_bounds(nextpos);
+            let blizzard_free = map.empty_cell(nextpos, node.minutes.0 + 1);
 
-            if map.empty_cell(nextpos, node.minutes.0 + 1) {
+            if special || (!out && blizzard_free) {
                 push(&mut heap, State {
                     score: Score {
                         dist_to_goal: Reverse(distance(exit_pos, nextpos)),
