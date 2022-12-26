@@ -61,6 +61,25 @@ fn wrap_flat(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coords) {
     }.unwrap(), dir)
 }
 
+fn heading_from_dir(dir: Coords) -> usize {
+    match dir {
+        (1,  0) => 0, // >
+        (0,  1) => 1, // v
+        (-1, 0) => 2, // <
+        (0, -1) => 3, // ^
+        _ => panic!()
+    }
+}
+fn dir_from_heading(heading: usize) -> Coords {
+    match heading {
+        0 => (1,  0), // >
+        1 => (0,  1), // v
+        2 => (-1, 0), // <
+        3 => (0, -1), // ^
+        _ => panic!()
+    }
+}
+
 // row-major order
 type Mat = (Coords, Coords);
 
@@ -68,6 +87,125 @@ fn matmul(mat: Mat, v: Coords) -> Coords {
     let ((a, b), (c, d)) = mat;
     let (v0, v1) = v;
     ((a * v0 + b * v1), (c * v0 + d * v1))
+}
+
+fn rotate_vec(v: Coords, heading: usize) -> Coords {
+    // could also just do left(left(foo)) etc
+    let noop = ((1, 0), (0, 1));
+    let turn_cw = ((0, -1), (1, 0)); // right; prev x becomes y, prev y becomes -x
+    let fullturn = ((-1, 0), (0, -1));// twice left, or twice back; x and y both negate
+    let turn_ccw = ((0, 1), (-1, 0)); // left; prev y becomes x, prev x becomes -y
+    let edge_axis_turns = &[noop, turn_cw, fullturn, turn_ccw];
+
+    matmul(edge_axis_turns[heading], v)
+}
+
+// this math is trivial but it's good to give it a name
+fn rotate_heading(heading: usize, rot: usize) -> usize {
+    (heading + rot + 4) % 4
+}
+
+// this math is trivial but it's good to give it a name
+fn invert_heading(heading: usize) -> usize {
+    // can't apply unary minus to usize, urgh
+    rotate_heading(0, 4 - heading)
+}
+
+fn wrap_canonical(cube: &Cube, src_face: Coords, src_dir: usize, src_edgeoff: Coords)
+-> (Coords, usize, Coords) {
+    let canon_neighs = cube.canonical_warps.get(&src_face).unwrap();
+    let (dest_face, dest_rot_rel) = canon_neighs[src_dir];
+    let dest_rot_rel = dest_rot_rel as usize;
+
+    let dest_dir = rotate_heading(src_dir, dest_rot_rel);
+    let dest_edgeoff = rotate_vec(src_edgeoff, dest_rot_rel);
+    (dest_face, dest_dir, dest_edgeoff)
+}
+
+fn wrap_discovered_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coords) {
+    let map = &cube.map;
+    let map_to_canon = &cube.map_to_canon;
+
+    let face_size = ((map.len() / 6) as f64).sqrt() as i64;
+    let face_end = face_size - 1;
+    let src_faceidx = (pos.0 / face_size, pos.1 / face_size);
+    let src_faceoff = (pos.0 % face_size, pos.1 % face_size);
+
+    let src_map_heading = heading_from_dir(dir);
+
+    // make src coords run along an axis on the edge so the rotation just works
+    let src_edge_ax_origins = [(face_end, 0), (0, face_end), (0, 0), (0, 0)];
+    let src_ax_origin = src_edge_ax_origins[src_map_heading];
+    let src_edgeoff = sub(src_faceoff, src_ax_origin);
+    assert!(src_edgeoff.0 == 0 || src_edgeoff.1 == 0);
+
+    // - which face this is in canonical world
+    // - which edge of a canonical face is facing right on the map
+    let &(src_canon_face, src_canon_rot2map) = map_to_canon.get(&src_faceidx).unwrap();
+    // vector along the equivalent edge in canonical world
+    let src_canon_edgeoff = rotate_vec(src_edgeoff, src_canon_rot2map);
+    // current map heading as seen in canonical world
+    let src_canon_heading = rotate_heading(src_map_heading, src_canon_rot2map);
+
+    if false {
+        println!("ahoyyy src face {:?}, src edgeoff {:?}, src dir {:?}",
+                 src_faceidx, src_edgeoff, src_map_heading);
+        println!("ahoyyy canon face {:?}, canon rot2map {:?}, canon edgeoff {:?}, canon dir {:?}",
+                 src_canon_face, src_canon_rot2map, src_canon_edgeoff, src_canon_heading);
+    }
+
+    // where the edge wraps to
+    let (dest_canon_face, dest_canon_heading, dest_canon_edgeoff) =
+        wrap_canonical(cube, src_canon_face, src_canon_heading, src_canon_edgeoff);
+    // inverse-lookup the destination
+    let (&dest_faceidx, &(_, dest_canon_rot2map)) =
+        map_to_canon.iter().find(|(_, v)| v.0 == dest_canon_face).unwrap();
+    let dest_face_origin = scale(dest_faceidx, (face_size, face_size));
+    let dest_map_heading = rotate_heading(dest_canon_heading, invert_heading(dest_canon_rot2map));
+    let dest_map_edgeoff = rotate_vec(dest_canon_edgeoff, invert_heading(dest_canon_rot2map));
+
+    if false {
+        println!("ahoya dest face in map: {:?} rotated {}, new heading {}, on canon edge: {:?}",
+                 dest_faceidx, dest_canon_rot2map, dest_map_heading, dest_canon_edgeoff);
+        println!("and on map edge: {:?}",
+                 dest_map_edgeoff);
+    }
+
+    let (tl, tr, bl, br) = ((0, 0), (face_end, 0), (0, face_end), (face_end, face_end));
+
+    // corner connectivity: get destination face corner that's the origin of this axis
+    // where source heading goes when rotating that way
+    // could also build this with dest heading, it's equivalent
+    // FIXME: this is probably cyclic, simplify
+    let corner_map = [
+        [tl, tl, tr, bl], // rot 0: noop
+        [tr, tr, br, tl], // rot 1: cw right
+        [br, br, bl, tr], // rot 2: flip
+        [bl, bl, tl, br], // rot 3: ccw left
+    ];
+    let relative_rotation = (dest_map_heading + 4 - src_map_heading) % 4;
+    let dest_ax_origin = corner_map[relative_rotation][src_map_heading];
+
+    // final position within destination face
+    let dest_faceoff = add(dest_ax_origin, dest_map_edgeoff);
+
+    if false {
+        println!("dest ax corner on map {:?}", dest_ax_origin);
+        println!("corner chosen by {:?} and {:?}", relative_rotation, src_map_heading);
+        println!("point within new box is {:?}", dest_faceoff);
+    }
+
+    let new_pos = add(dest_face_origin, dest_faceoff);
+    let new_dir = dir_from_heading(dest_map_heading);
+
+    if false {
+        println!("discovery-based transform {:?} (off {:?}) with dir {:?} into {:?} (off {:?}) with dir {:?}",
+            pos, src_faceoff, dir,
+            new_pos, dest_faceoff, new_dir);
+        println!();
+    }
+
+    (new_pos, new_dir)
 }
 
 fn wrap_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coords) {
@@ -197,11 +335,14 @@ fn wrap_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coords) {
     let finalpos = add(dest_face_origin, dest_faceoff);
     let finaldir = matmul(axisrotate, dir);
     if false {
-        println!("transformed {:?} (off {:?}) into {:?} (off {:?})",
-            pos, src_faceoff,
-            add(dest_face_origin, dest_faceoff), dest_faceoff);
+        println!("transformed {:?} (off {:?}) with dir {:?} into {:?} (off {:?}) with dir {:?}",
+            pos, src_faceoff, dir,
+            add(dest_face_origin, dest_faceoff), dest_faceoff, finaldir);
     }
 
+    let better = wrap_discovered_cube(cube, pos, dir);
+    assert_eq!(better.0, finalpos);
+    assert_eq!(better.1, finaldir);
     (finalpos, finaldir)
 }
 
@@ -240,14 +381,7 @@ fn final_pos<F: Fn(&Cube, Coords, Coords) -> (Coords, Coords)>(notes: &Notes, wr
 }
 
 fn password((pos, dir): (Coords, Coords)) -> i64 {
-    let facing = match dir {
-        (1,  0) => 0,
-        (0,  1) => 1,
-        (-1, 0) => 2,
-        (0, -1) => 3,
-        _ => panic!()
-    };
-    1000 * (pos.1 + 1) + 4 * (pos.0 + 1) + facing
+    1000 * (pos.1 + 1) + 4 * (pos.0 + 1) + heading_from_dir(dir) as i64
 }
 
 fn final_password_flat(notes: &Notes) -> i64 {
