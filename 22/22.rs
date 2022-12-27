@@ -112,37 +112,32 @@ fn invert_heading(heading: usize) -> usize {
     rotate_heading(0, 4 - heading)
 }
 
-fn rotate_at_edge(heading: usize, edgeoff: Coords, rotation: usize) -> (usize, Coords) {
-    (rotate_heading(heading, rotation), rotate_vec(edgeoff, rotation))
-}
-
-fn wrap_canonical(cube: &Cube, src_face: Coords, src_heading: usize, src_edgeoff: Coords)
--> (Coords, usize, Coords) {
+fn wrap_canonical(cube: &Cube, src_face: Coords, src_heading: usize)
+-> (Coords, usize) {
     let canon_neighs = cube.canonical_warps.get(&src_face).unwrap();
     let (dest_face, dest_rot_rel) = canon_neighs[src_heading];
-    let (dest_heading, dest_edgeoff) = rotate_at_edge(src_heading, src_edgeoff, dest_rot_rel);
+    let dest_heading = rotate_heading(src_heading, dest_rot_rel);
 
-    (dest_face, dest_heading, dest_edgeoff)
+    (dest_face, dest_heading)
 }
 
-fn canonical_from_map(cube: &Cube, map_face: Coords, map_heading: usize, map_edgeoff: Coords)
--> (Coords, usize, Coords) {
+fn canonical_from_map(cube: &Cube, map_face: Coords, map_heading: usize)
+-> (Coords, usize) {
     // - which face this is in canonical world
     // - which edge of a canonical face is facing right on the map
     let &(canon_face, rotation) = cube.map_to_canon.get(&map_face).unwrap();
-    let (canon_heading, canon_edgeoff) = rotate_at_edge(map_heading, map_edgeoff, rotation);
+    let canon_heading = rotate_heading(map_heading, rotation);
 
-    (canon_face, canon_heading, canon_edgeoff)
+    (canon_face, canon_heading)
 }
 
-fn map_from_canonical(cube: &Cube, canon_face: Coords, canon_heading: usize, canon_edgeoff: Coords)
--> (Coords, usize, Coords) {
+fn map_from_canonical(cube: &Cube, canon_face: Coords, canon_heading: usize)
+-> (Coords, usize) {
     let (&faceidx, &(_, rotation_inv)) =
         cube.map_to_canon.iter().find(|(_, v)| v.0 == canon_face).unwrap();
-    let (map_heading, map_edgeoff) =
-        rotate_at_edge(canon_heading, canon_edgeoff, invert_heading(rotation_inv));
+    let map_heading = rotate_heading(canon_heading, invert_heading(rotation_inv));
 
-    (faceidx, map_heading, map_edgeoff)
+    (faceidx, map_heading)
 }
 
 fn wrap_discovered_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coords) {
@@ -160,16 +155,16 @@ fn wrap_discovered_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coord
     assert!(src_edgeoff.0 == 0 || src_edgeoff.1 == 0);
 
     // move to the coordinate system where the wraps are defined
-    let (src_canon_face, src_canon_heading, src_canon_edgeoff)
-        = canonical_from_map(cube, src_faceidx, src_map_heading, src_edgeoff);
+    let (src_canon_face, src_canon_heading)
+        = canonical_from_map(cube, src_faceidx, src_map_heading);
 
     // where the edge wraps to
-    let (dest_canon_face, dest_canon_heading, dest_canon_edgeoff) =
-        wrap_canonical(cube, src_canon_face, src_canon_heading, src_canon_edgeoff);
+    let (dest_canon_face, dest_canon_heading)
+        = wrap_canonical(cube, src_canon_face, src_canon_heading);
 
     // inverse-lookup the destination
-    let (dest_faceidx, dest_map_heading, dest_map_edgeoff)
-        = map_from_canonical(cube, dest_canon_face, dest_canon_heading, dest_canon_edgeoff);
+    let (dest_faceidx, dest_map_heading)
+        = map_from_canonical(cube, dest_canon_face, dest_canon_heading);
 
     let dest_face_origin = scale(dest_faceidx, (face_size, face_size));
 
@@ -185,7 +180,9 @@ fn wrap_discovered_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coord
         [br, br, bl, tr], // rot 2: flip
         [bl, bl, tl, br], // rot 3: ccw left
     ];
+
     let relative_rotation = (dest_map_heading + 4 - src_map_heading) % 4;
+    let dest_map_edgeoff = rotate_vec(src_edgeoff, relative_rotation);
     let dest_ax_origin = corner_map[relative_rotation][src_map_heading];
 
     // final position within destination face
