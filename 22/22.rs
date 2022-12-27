@@ -169,25 +169,16 @@ fn wrap_discovered_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coord
     let dest_face_origin = scale(dest_faceidx, (face_size, face_size));
 
     // clockwise from origin: top left, top right, bottom right, bottom left
-    let (tl, tr, br, bl) = ((0, 0), (face_end, 0), (face_end, face_end), (0, face_end));
-
-    // corner connectivity: get destination face corner that's the origin of this axis
-    // where source heading goes when rotating that way
-    // could also build this with dest heading, it's equivalent
-    // FIXME: this is probably cyclic, simplify
-    let corner_map = [
-        [tl, tr, br, bl],
-        [tl, tr, br, bl],
-        [tr, br, bl, tl],
-        [bl, tl, tr, br],
-    ];
+    let corners = [(0, 0), (face_end, 0), (face_end, face_end), (0, face_end)];
+    // src heading right down left up: which dest corner represents origin in noop moves
+    let heading_offs = [0, 0, 1, 3];
 
     let relative_rotation = (dest_map_heading + 4 - src_map_heading) % 4;
-    let dest_map_edgeoff = rotate_vec(src_edgeoff, relative_rotation);
-    let dest_ax_origin = corner_map[src_map_heading][relative_rotation];
+    let dest_edgeoff = rotate_vec(src_edgeoff, relative_rotation);
+    let dest_ax_origin = corners[(heading_offs[src_map_heading] + relative_rotation) % 4];
 
     // final position within destination face
-    let dest_faceoff = add(dest_ax_origin, dest_map_edgeoff);
+    let dest_faceoff = add(dest_ax_origin, dest_edgeoff);
     assert!(dest_faceoff.0 >= 0);
     assert!(dest_faceoff.0 < face_size);
     assert!(dest_faceoff.1 >= 0);
