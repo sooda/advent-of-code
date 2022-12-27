@@ -11,6 +11,12 @@ use Tile::*;
 type Coords = (i64, i64);
 
 type Map = HashMap<Coords, Tile>;
+
+// map face -> canon face, rotation (which canon face heads right in map world)
+type TransformMap = HashMap<Coords, (Coords, usize)>;
+// canonical face -> canonical face, axis rotation (per each edge)
+type TransformWarps = HashMap<Coords, [(Coords, usize); 4]>;
+
 struct Cube {
     map: Map,
     map_to_canon: TransformMap,
@@ -18,15 +24,15 @@ struct Cube {
 }
 
 #[derive(Copy, Clone, Debug)]
-enum Rotation {
+enum RouteRotation {
     Left,
     Right,
 }
-use Rotation::*;
+use RouteRotation::*;
 
 // The input begins and ends with walking, so this is injected with extra rotation in the front.
 // Heading is initially up, this begins with Right to bring the heading to the right as specified.
-type Route = Vec<(Rotation, i64)>;
+type Route = Vec<(RouteRotation, i64)>;
 type Notes = (Cube, Route);
 
 // like ccw
@@ -166,6 +172,8 @@ fn wrap_discovered_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coord
     let (dest_faceidx, dest_map_heading)
         = map_from_canonical(cube, dest_canon_face, dest_canon_heading);
 
+    // note: the above three and some of this below could also be just one transform precalculated
+
     let dest_face_origin = scale(dest_faceidx, (face_size, face_size));
 
     // clockwise from origin: top left, top right, bottom right, bottom left
@@ -173,7 +181,8 @@ fn wrap_discovered_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coord
     // src heading right down left up: which dest corner represents origin in noop moves
     let heading_offs = [0, 0, 1, 3];
 
-    let relative_rotation = (dest_map_heading + 4 - src_map_heading) % 4;
+    // "dest - src" in heading math
+    let relative_rotation = rotate_heading(dest_map_heading, invert_heading(src_map_heading));
     let dest_edgeoff = rotate_vec(src_edgeoff, relative_rotation);
     let dest_ax_origin = corners[(heading_offs[src_map_heading] + relative_rotation) % 4];
 
@@ -187,152 +196,7 @@ fn wrap_discovered_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coord
     let new_pos = add(dest_face_origin, dest_faceoff);
     let new_dir = dir_from_heading(dest_map_heading);
 
-    if false {
-        println!("discovery-based transform {:?} (off {:?}) with dir {:?} into {:?} (off {:?}) with dir {:?}",
-            pos, src_faceoff, dir,
-            new_pos, dest_faceoff, new_dir);
-        println!();
-    }
-
     (new_pos, new_dir)
-}
-
-fn wrap_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coords) {
-    let map = &cube.map;
-    // remember, y grows down. these aoc coordinate systems...
-    let _flip_y = ((1, 0), (0, -1));
-    let _flip_x = ((-1, 0), (0, 1));
-    let fullturn = ((-1, 0), (0, -1));
-    let turn_ccw = ((0, 1), (-1, 0)); // prev y becomes x, prev x becomes -y
-    let turn_cw = ((0, -1), (1, 0)); // prev x becomes y, prev y becomes -x
-    let noop = ((1, 0), (0, 1));
-    type Tform = Option<(Coords, Mat, Coords)>;
-    let facesize = match map.len() {
-        96 /* 6*4*4 */ => 4,
-        15000 /* 6*50*50 */ => 50,
-        _ => panic!("unusual input"),
-    };
-    let faceend = facesize - 1;
-    // (dest face, (right left bottom top))
-    let transform_map: Vec<(Coords, (Tform, Tform, Tform, Tform))>
-        = match map.len() {
-        96 /* 6*4*4 */ => vec![
-            ((2, 0), (
-                Some(((3, 2), fullturn, (faceend, faceend))),
-                Some(((1, 1), turn_ccw, (0, 0))),
-                None,
-                Some(((0, 1), fullturn, (0, 0))),
-            )),
-            ((0, 1), (
-                None,
-                Some(((3, 2), turn_cw, (faceend, faceend))),
-                Some(((2, 2), fullturn, (faceend, faceend))),
-                Some(((2, 0), fullturn, (faceend, 0))),
-            )),
-            ((1, 1), (
-                None,
-                None,
-                Some(((2, 2), turn_ccw, (0, 0))),
-                Some(((2, 0), turn_cw, (0, 0))),
-            )),
-            ((2, 1), (
-                Some(((3, 2), turn_cw, (faceend, 0))),
-                None,
-                None,
-                None,
-            )),
-            ((2, 2), (
-                None,
-                Some(((1, 1), turn_cw, (faceend, 0))),
-                Some(((0, 1), fullturn, (faceend, faceend))),
-                None,
-            )),
-            ((3, 2), (
-                Some(((2, 0), fullturn, (faceend, faceend))),
-                None,
-                Some(((0, 1), turn_ccw, (0, faceend))),
-                Some(((2, 1), turn_ccw, (0, faceend))),
-            )),
-        ],
-        15000 /* 6*50*50 */ => vec![
-            ((1, 0), (
-                None,
-                Some(((0, 2), fullturn, (0, faceend))),
-                None,
-                Some(((0, 3), turn_cw, (0, 0))),
-            )),
-            ((2, 0), (
-                Some(((1, 2), fullturn, (faceend, faceend))),
-                None,
-                Some(((1, 1), turn_cw, (faceend, 0))),
-                Some(((0, 3), noop, (0, faceend))),
-            )),
-            ((1, 1), (
-                Some(((2, 0), turn_ccw, (0, faceend))),
-                Some(((0, 2), turn_ccw, (0, 0))),
-                None,
-                None,
-            )),
-            ((0, 2), (
-                None,
-                Some(((1, 0), fullturn, (0, faceend))),
-                None,
-                Some(((1, 1), turn_cw, (0, 0))),
-            )),
-            ((1, 2), (
-                Some(((2, 0), fullturn, (faceend, faceend))),
-                None,
-                Some(((0, 3), turn_cw, (faceend, 0))),
-                None,
-            )),
-            ((0, 3), (
-                Some(((1, 2), turn_ccw, (0, faceend))),
-                Some(((1, 0), turn_ccw, (0, 0))),
-                Some(((2, 0), noop, (0, 0))),
-                None,
-            )),
-        ],
-        _ => panic!("unusual input"),
-    };
-    // note: x,y at the edge, not necessarily overlapping major axes of the face (at 0,0)
-    // so src edge vectors also managed in the transform
-
-    let src_faceidx = (pos.0 / facesize, pos.1 / facesize);
-    let src_faceoff = (pos.0 % facesize, pos.1 % facesize);
-
-    let transforms = transform_map.iter().find(|t| t.0 == src_faceidx).expect("this face does not flip").1;
-    let (tform, src_ax_offset) = match dir {
-        (1,  0) => (transforms.0.expect("flip on contig edge?"), (faceend, 0)),
-        (-1, 0) => (transforms.1.expect("flip on contig edge?"), (0, 0)),
-        (0,  1) => (transforms.2.expect("flip on contig edge?"), (0, faceend)),
-        (0, -1) => (transforms.3.expect("flip on contig edge?"), (0, 0)),
-        _ => panic!()
-    };
-    // make src coords run along an axis on the edge so the rotation just works
-    let src_edgeoff = sub(src_faceoff, src_ax_offset);
-    assert!(src_edgeoff.0 == 0 || src_edgeoff.1 == 0);
-
-    let (dest_faceidx, axisrotate, dest_ax_offset) = tform;
-    let dest_face_origin = scale(dest_faceidx, (facesize, facesize));
-
-    let dest_faceoff = add(matmul(axisrotate, src_edgeoff), dest_ax_offset);
-    assert!(dest_faceoff.0 >= 0);
-    assert!(dest_faceoff.0 < facesize);
-    assert!(dest_faceoff.1 >= 0);
-    assert!(dest_faceoff.1 < facesize);
-
-    let finalpos = add(dest_face_origin, dest_faceoff);
-    let finaldir = matmul(axisrotate, dir);
-    if false {
-        println!("transformed {:?} (off {:?}) with dir {:?} into {:?} (off {:?}) with dir {:?}",
-            pos, src_faceoff, dir,
-            add(dest_face_origin, dest_faceoff), dest_faceoff, finaldir);
-    }
-
-    let better = wrap_discovered_cube(cube, pos, dir);
-    assert_eq!(better.0, finalpos);
-    assert_eq!(better.1, finaldir);
-    (finalpos, finaldir)
 }
 
 fn final_pos<F: Fn(&Cube, Coords, Coords) -> (Coords, Coords)>(notes: &Notes, wrap: F) -> (Coords, Coords) {
@@ -351,9 +215,6 @@ fn final_pos<F: Fn(&Cube, Coords, Coords) -> (Coords, Coords)>(notes: &Notes, wr
             let (next, ndir, tile) = match map.get(&next) {
                 Some(tile) => (next, dir, tile),
                 None => {
-                    if false {
-                        println!("found nothin at from {:?} to {:?}", pos, next);
-                    }
                     let (next, nextdir) = wrap(cube, pos, dir);
                     (next, nextdir, map.get(&next).unwrap())
                 }
@@ -377,21 +238,9 @@ fn final_password_flat(notes: &Notes) -> i64 {
     password(final_pos(notes, wrap_flat))
 }
 
-// face index, rotation
-type FaceTform = (Coords, usize);
-type TransformMap = HashMap<Coords, FaceTform>;
-type TransformWarps = HashMap<Coords, [(Coords, usize); 4]>;
-
 // map_face now determined to be canon_face, rotation known; if exists, save and repeat for neighbors
 // either this is a primary canonical face, or coming to this from a known face
-fn face_discovery(map: &Map, face_size: i64, map_face: Coords, cwarps: &TransformWarps, canon_face: Coords, rot_on_map: usize, map_to_c_warps: &mut TransformMap, debugprefix: String) {
-    if map_face.0 < 0 || map_face.1 < 0 {
-        return;
-    }
-    // FIXME map extents
-    if map_face.0 > 4 || map_face.1 > 4 {
-        return;
-    }
+fn face_discovery(map: &Map, face_size: i64, cwarps: &TransformWarps, map_face: Coords, canon_face: Coords, rot_on_map: usize, map_to_c_warps: &mut TransformMap) {
     let topleft_pixel = scale(map_face, (face_size, face_size));
 
     if !map.contains_key(&topleft_pixel) {
@@ -399,28 +248,14 @@ fn face_discovery(map: &Map, face_size: i64, map_face: Coords, cwarps: &Transfor
         return;
     }
 
-    if false {
-        println!("{}visiting face: map {:?} canon {:?} maprot {}",
-                 debugprefix,
-                 map_face,
-                 canon_face,
-                 rot_on_map
-                 );
-    }
-
     let tform = (canon_face, rot_on_map);
     if let Some(tform_old) = map_to_c_warps.insert(map_face, tform) {
-        if false {
-            println!("{}it already exists as canon {:?} rot {}",
-                     debugprefix,
-                     tform_old.0, tform_old.1);
-        }
-        assert_eq!(tform_old, tform);
         // already visited
+        assert_eq!(tform_old, tform);
         return;
     }
 
-    // 0 right, 1 down, 2 left, 3 top
+    // right, down, left, top
     let map_neighs = &[(1, 0), (0, 1), (-1, 0), (0, -1)];
     let canonical_neighs = cwarps.get(&canon_face).unwrap();
     // when the face is rotated, these edges rotate correspondingly
@@ -428,18 +263,13 @@ fn face_discovery(map: &Map, face_size: i64, map_face: Coords, cwarps: &Transfor
             canonical_neighs.iter().cycle().skip(rot_on_map)) {
         let n_map_face = add(map_face, nface_delta);
         let n_rot = (rot_on_map + n_axis_rot) % 4;
-        if false {
-            println!("{}neighy {:?} maps to canon {:?} with neigh rot {} and resulting rot {}",
-                     debugprefix,
-                     n_map_face, n_canon_face, n_axis_rot, n_rot);
-        }
 
-        face_discovery(map, face_size, n_map_face, cwarps, n_canon_face, n_rot, map_to_c_warps, debugprefix.clone() + "  ");
+        face_discovery(map, face_size, cwarps, n_map_face, n_canon_face, n_rot, map_to_c_warps);
     }
 }
 
 /*
- * Make a face lookup  into this form, depending on if the input is taller than wide or not:
+ * Make a face lookup into this form, depending on if the input is taller than wide or not:
  * .F.  ..G.
  * .E.  FEAD
  * BAG  ..B.
@@ -453,8 +283,8 @@ fn canonical_cube(cube: Cube) -> Cube {
     let w = map.keys().max_by_key(|pos| pos.0).unwrap().0 - 0 + 1;
     let h = map.keys().max_by_key(|pos| pos.1).unwrap().1 - 0 + 1;
     // dimensions 4x3 or 3x4, except for this untested shape:
-    // XXX
-    //   XXX
+    // ###
+    //   ###
     let w_faces = w / face_size;
     let h_faces = h / face_size;
 
@@ -466,13 +296,10 @@ fn canonical_cube(cube: Cube) -> Cube {
     );
     let canonical_faces = &[f, e, b, a, g, d];
     // right = clockwise, left = ccw; f as flip
-    let (r_0, r_r, r_f, r_l) = (0, 1, 2, 3); // same as heading score
-    // relative positions and rotations
-    // same as heading score: right bot left top (NOT same as current wrap_cube())
+    let (r_0, r_r, r_f, r_l) = (0, 1, 2, 3);
+    // relative positions and rotations across face pairs on edges
+    // same as heading score: right bot left top
     // rotations are from this face to the neighbor for the edge axis and the heading
-    // XXX dest edge is in the face info of the destination to avoid redundancy
-    // XXX edge axis rot is inverse of cube heading rot
-    // XXX also rot probably means: which edge matches map right edge when placed at that neigh spot
     let canonical_warps: TransformWarps = [
         (f, [(g, r_f), (e, r_0), (b, r_f), (d, r_0)]),
         (e, [(g, r_r), (a, r_0), (b, r_l), (f, r_0)]),
@@ -483,26 +310,24 @@ fn canonical_cube(cube: Cube) -> Cube {
     ].into_iter().collect();
 
     // some pair validation, not completely waterproof though if both are wrong identically
+    let mut npairs = 0;
     for (face, edges) in &canonical_warps {
         for (e, er) in edges.iter() {
             for (ne, ner) in canonical_warps.get(e).unwrap() {
                 if *ne == *face {
                     assert_eq!((er + ner) % 4, 0);
+                    npairs += 1;
                 }
             }
         }
     }
+    assert_eq!(npairs, 24);
 
-    /*
     // 1. canonical face order is a known fact
     // 2. need map face edge/face edge mapping to wrap at map discontiguities
     // 3. first determine map face / canon face correspondence to know where faces are
-    // 4. when all canon face poses are known on map, transform canon edges on map edges
-    */
-    // Not sure which ones of these are set, so try each one to ensure the world is visited.
-    // It'll be visited entirely from the first hit, though.
-    // XXX not necessarily as the above has to see the real ones first?
-    // hmm just four uncanonical corners XXX do one by one?
+    // 4. when all canon face poses are known on map, transform canon edges vs map edges
+
     // which face do the tiles provide data for
     let mut map_to_canon = TransformMap::new();
     if w_faces < h_faces {
@@ -512,8 +337,10 @@ fn canonical_cube(cube: Cube) -> Cube {
          * BAG
          * .D.
          */
+        // Not sure which ones of these are set, so try each one to ensure the world is visited.
+        // The map will be visited entirely from the first hit, though; the rest are validation.
         for &face in canonical_faces {
-            face_discovery(&map, face_size, face, &canonical_warps, face, r_0, &mut map_to_canon, "".to_string());
+            face_discovery(&map, face_size, &canonical_warps, face, face, r_0, &mut map_to_canon);
         }
     } else if w_faces > h_faces {
         /*
@@ -523,17 +350,14 @@ fn canonical_cube(cube: Cube) -> Cube {
          */
         for &face in canonical_faces {
             let rotated_face = (face.1, 2 - face.0);
-            face_discovery(&map, face_size, rotated_face, &canonical_warps, face, r_r, &mut map_to_canon, "".to_string());
+            face_discovery(&map, face_size, &canonical_warps, rotated_face, face, r_r, &mut map_to_canon);
         }
     } else {
         panic!("square input not possible");
     }
-    if false {
-        println!("discovered map_to_canon :: mapface -> (canonface, rotated) {:?}", map_to_canon);
-    }
+
     Cube { map, map_to_canon, canonical_warps }
 }
-
 
 /*
  * These fold patterns are possible, but only two are apparently used:
@@ -547,7 +371,7 @@ fn canonical_cube(cube: Cube) -> Cube {
  *         #     #   ##    #   ##
  */
 fn final_password_cube(notes: Notes) -> i64 {
-    password(final_pos(&(canonical_cube(notes.0), notes.1), wrap_cube))
+    password(final_pos(&(canonical_cube(notes.0), notes.1), wrap_discovered_cube))
 }
 
 fn parse_map(note: &[String]) -> Map {
