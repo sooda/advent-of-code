@@ -168,22 +168,23 @@ fn wrap_discovered_cube(cube: &Cube, pos: Coords, dir: Coords) -> (Coords, Coord
 
     let dest_face_origin = scale(dest_faceidx, (face_size, face_size));
 
-    let (tl, tr, bl, br) = ((0, 0), (face_end, 0), (0, face_end), (face_end, face_end));
+    // clockwise from origin: top left, top right, bottom right, bottom left
+    let (tl, tr, br, bl) = ((0, 0), (face_end, 0), (face_end, face_end), (0, face_end));
 
     // corner connectivity: get destination face corner that's the origin of this axis
     // where source heading goes when rotating that way
     // could also build this with dest heading, it's equivalent
     // FIXME: this is probably cyclic, simplify
     let corner_map = [
-        [tl, tl, tr, bl], // rot 0: noop
-        [tr, tr, br, tl], // rot 1: cw right
-        [br, br, bl, tr], // rot 2: flip
-        [bl, bl, tl, br], // rot 3: ccw left
+        [tl, tr, br, bl],
+        [tl, tr, br, bl],
+        [tr, br, bl, tl],
+        [bl, tl, tr, br],
     ];
 
     let relative_rotation = (dest_map_heading + 4 - src_map_heading) % 4;
     let dest_map_edgeoff = rotate_vec(src_edgeoff, relative_rotation);
-    let dest_ax_origin = corner_map[relative_rotation][src_map_heading];
+    let dest_ax_origin = corner_map[src_map_heading][relative_rotation];
 
     // final position within destination face
     let dest_faceoff = add(dest_ax_origin, dest_map_edgeoff);
