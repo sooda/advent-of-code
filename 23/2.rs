@@ -7,6 +7,7 @@ use regex::Regex;
 struct Game {
     id: u32,
     ok: bool,
+    power: u32,
 }
 
 fn parse_game(inp: &str) -> Game {
@@ -32,7 +33,7 @@ fn parse_game(inp: &str) -> Game {
         }
     }
 
-    Game { id, ok: r <= 12 && g <= 13 && b <= 14 }
+    Game { id, ok: r <= 12 && g <= 13 && b <= 14, power: r * g * b }
 }
 
 fn main() {
@@ -40,5 +41,6 @@ fn main() {
         .map(|line| parse_game(&line.unwrap()))
         .collect();
     println!("{}", games.iter().filter(|x| x.ok).map(|x| x.id).sum::<u32>());
+    println!("{}", games.iter().map(|x| x.power).sum::<u32>());
 }
 
