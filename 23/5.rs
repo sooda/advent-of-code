@@ -3,6 +3,10 @@ use std::io::{self, Read};
 extern crate regex;
 use regex::Regex;
 
+// consume 3m46s to do naive computation vs 2.5 seconds with ranges
+// (which too is quite lot, probably should prune a bit)
+const DOUBLE_CHECK: bool = false;
+
 #[derive(Debug)]
 struct MapRange {
     dst_start: u32,
@@ -38,14 +42,65 @@ fn map_to_location(almanac: &Almanac, property: u32, lookup: usize) -> u32 {
     map_to_location(almanac, next, lookup + 1)
 }
 
+fn overlap(a: (u32, u32), b: (u32, u32)) -> Option<(u32, u32)> {
+    let left = a.0.max(b.0);
+    let right = a.1.min(b.1);
+    if left <= right {
+        Some((left, right))
+    } else {
+        None
+    }
+}
+
+// end is inclusive
+fn map_to_location_range(almanac: &Almanac, prop_start: u32, prop_end: u32, lookup: usize) -> u32 {
+    if lookup == almanac.maps.len() {
+        return prop_start;
+    }
+    let mut smol = std::u32::MAX;
+    for range in &almanac.maps[lookup] {
+        let src_end = range.src_start + range.len - 1;
+        if let Some(together) = overlap((prop_start, prop_end), (range.src_start, src_end)) {
+            let off_l = together.0 - range.src_start;
+            let off_r = together.1 - range.src_start;
+            smol = smol.min(map_to_location_range(almanac, range.dst_start + off_l, range.dst_start + off_r, lookup + 1));
+
+            if prop_start < range.src_start {
+                // split the range and retry the left only
+                smol = smol.min(map_to_location_range(almanac, prop_start, range.src_start - 1, lookup));
+            }
+
+            if prop_end > src_end {
+                // split the range and retry the right only
+                smol = smol.min(map_to_location_range(almanac, src_end + 1, prop_end, lookup));
+            }
+        }
+    }
+    if smol == std::u32::MAX {
+        // nothing matched, entire range maps 1:1
+        smol = smol.min(map_to_location_range(almanac, prop_start, prop_end, lookup + 1));
+    }
+    smol
+}
+
 fn lowest_location(almanac: &Almanac) -> u32 {
     almanac.seeds.iter().map(|&s| map_to_location(almanac, s, 0)).min().unwrap()
 }
 
-fn lowest_location_ranged(almanac: &Almanac) -> u32 {
+fn _lowest_location_ranged_naive(almanac: &Almanac) -> u32 {
     almanac.seeds.chunks(2).map(|spec| {
         (spec[0] .. spec[0] + spec[1]).map(|s| map_to_location(almanac, s, 0)).min().unwrap()
     }).min().unwrap()
+}
+
+fn lowest_location_ranged(almanac: &Almanac) -> u32 {
+    let ret = almanac.seeds.chunks(2).map(|spec| {
+        map_to_location_range(almanac, spec[0], spec[0] + spec[1] - 1, 0)
+    }).min().unwrap();
+    if DOUBLE_CHECK {
+        assert_eq!(ret, _lowest_location_ranged_naive(almanac));
+    }
+    ret
 }
 
 fn parse(almanac: &str) -> Almanac {
