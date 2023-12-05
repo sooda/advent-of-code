@@ -42,6 +42,12 @@ fn lowest_location(almanac: &Almanac) -> u32 {
     almanac.seeds.iter().map(|&s| map_to_location(almanac, s, 0)).min().unwrap()
 }
 
+fn lowest_location_ranged(almanac: &Almanac) -> u32 {
+    almanac.seeds.chunks(2).map(|spec| {
+        (spec[0] .. spec[0] + spec[1]).map(|s| map_to_location(almanac, s, 0)).min().unwrap()
+    }).min().unwrap()
+}
+
 fn parse(almanac: &str) -> Almanac {
     let fmt = r"(?m)seeds: ([\d ]+)
 
@@ -92,4 +98,5 @@ fn main() {
     io::stdin().read_to_string(&mut file).unwrap();
     let almanac = parse(&file);
     println!("{}", lowest_location(&almanac));
+    println!("{}", lowest_location_ranged(&almanac));
 }
