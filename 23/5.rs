@@ -3,8 +3,7 @@ use std::io::{self, Read};
 extern crate regex;
 use regex::Regex;
 
-// consume 3m46s to do naive computation vs 2.5 seconds with ranges
-// (which too is quite lot, probably should prune a bit)
+// consume 3m46s to do naive computation vs 0.008 seconds with ranges
 const DOUBLE_CHECK: bool = false;
 
 #[derive(Debug)]
@@ -52,18 +51,14 @@ fn overlap(a: (u32, u32), b: (u32, u32)) -> Option<(u32, u32)> {
     }
 }
 
-// end is inclusive
-fn map_to_location_range(almanac: &Almanac, prop_start: u32, prop_end: u32, lookup: usize) -> u32 {
-    if lookup == almanac.maps.len() {
-        return prop_start;
-    }
-    let mut smol = std::u32::MAX;
+fn try_overlap_range(almanac: &Almanac, prop_start: u32, prop_end: u32, lookup: usize) -> Option<u32> {
     for range in &almanac.maps[lookup] {
-        let src_end = range.src_start + range.len - 1;
+        let src_end = range.src_start + (range.len - 1);
         if let Some(together) = overlap((prop_start, prop_end), (range.src_start, src_end)) {
+            // found a match
             let off_l = together.0 - range.src_start;
             let off_r = together.1 - range.src_start;
-            smol = smol.min(map_to_location_range(almanac, range.dst_start + off_l, range.dst_start + off_r, lookup + 1));
+            let mut smol = map_to_location_range(almanac, range.dst_start + off_l, range.dst_start + off_r, lookup + 1);
 
             if prop_start < range.src_start {
                 // split the range and retry the left only
@@ -74,13 +69,28 @@ fn map_to_location_range(almanac: &Almanac, prop_start: u32, prop_end: u32, look
                 // split the range and retry the right only
                 smol = smol.min(map_to_location_range(almanac, src_end + 1, prop_end, lookup));
             }
+
+            // no need to continue the loop, ranges do not overlap so this was the only one
+            // (plus possibly the splits)
+            return Some(smol);
         }
     }
-    if smol == std::u32::MAX {
-        // nothing matched, entire range maps 1:1
-        smol = smol.min(map_to_location_range(almanac, prop_start, prop_end, lookup + 1));
+
+    None
+}
+
+// end is inclusive
+fn map_to_location_range(almanac: &Almanac, prop_start: u32, prop_end: u32, lookup: usize) -> u32 {
+    if lookup == almanac.maps.len() {
+        return prop_start;
     }
-    smol
+    if let Some(smol) = try_overlap_range(almanac, prop_start, prop_end, lookup) {
+        smol
+    } else {
+        // nothing matched, entire range maps 1:1
+        map_to_location_range(almanac, prop_start, prop_end, lookup + 1)
+    }
+
 }
 
 fn lowest_location(almanac: &Almanac) -> u32 {
