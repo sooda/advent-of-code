@@ -77,34 +77,7 @@ fn strength_jokery(hand: &Hand) -> i32 {
         return 6;
     }
     let highest = map.iter().map(|(&c, &count)| (count, c)).max().unwrap().1;
-    match n_jokers {
-        // trivial, all but one joker so five of a kind
-        4 => 6,
-        // five or four of a kind
-        3 => strength(&rehand(map, highest)),
-        // five, four or three of a kind
-        2 => strength(&rehand(map, highest)),
-        // single joker doesn't affect ordinary strength
-        1 => match strength(hand) {
-            // five of a kind: impossible
-            6 => panic!(),
-            // four of a kind: five
-            5 => 6,
-            // full house: impossible, joker is an outlier
-            4 => panic!(),
-            // three of a kind: four
-            3 => 5,
-            // two pair: full house
-            2 => 4,
-            // one pair: three of a kind
-            1 => 3,
-            // high card: one pair
-            0 => 1,
-            _ => panic!(),
-        }
-        0 => strength(hand),
-        _ => panic!()
-    }
+    strength(&rehand(map, highest))
 }
 
 fn total_winnings(mut games: Vec<(Hand, i32)>) -> i32 {
