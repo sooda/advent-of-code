@@ -22,30 +22,51 @@ fn loop_positions(map: &Map, spos: Coord) -> Vec<Coord> {
     positions
 }
 
-fn do_fill(sketch: &Sketch, map: &Map, loop_positions: &[Coord], pos: Coord, visit_map: &mut HashMap<Coord, char>) {
+fn do_fill(sketch: &Sketch, pos: Coord, visit_map: &mut HashMap<Coord, char>) {
     let maxx = sketch[0].len() as i32;
     let maxy = sketch.len() as i32;
     if pos.0 < 0 || pos.0 >= maxx || pos.1 < 0 || pos.1 >= maxy {
-        return;
-    }
-    if loop_positions.iter().find(|&&lp| lp == pos).is_some() {
         return;
     }
     if visit_map.contains_key(&pos) {
         return;
     }
     visit_map.insert(pos, 'I');
-    do_fill(sketch, map, loop_positions, (pos.0 - 1, pos.1), visit_map);
-    do_fill(sketch, map, loop_positions, (pos.0 + 1, pos.1), visit_map);
-    do_fill(sketch, map, loop_positions, (pos.0, pos.1 - 1), visit_map);
-    do_fill(sketch, map, loop_positions, (pos.0, pos.1 + 1), visit_map);
+    do_fill(sketch, (pos.0 - 1, pos.1), visit_map);
+    do_fill(sketch, (pos.0 + 1, pos.1), visit_map);
+    do_fill(sketch, (pos.0, pos.1 - 1), visit_map);
+    do_fill(sketch, (pos.0, pos.1 + 1), visit_map);
 }
 
-fn inside(sketch: &Sketch, map: &Map, loop_positions: &[Coord]) -> usize {
-    let maxx = sketch[0].len() as i32;
-    let maxy = sketch.len() as i32;
+fn cross_product(a: Coord, b: Coord) -> i32 {
+    a.0 * b.1 - a.1 * b.0
+}
+
+fn winding(positions: &[Coord]) -> i32 {
+   positions.iter()
+        .zip(positions.iter().cycle().skip(1))
+        .zip(positions.iter().cycle().skip(2))
+        .map(|((p0, p1), p2)| {
+            let d0 = (p1.0 - p0.0, p1.1 - p0.1);
+            let d1 = (p2.0 - p1.0, p2.1 - p1.1);
+            // 0 for no change, -1 or +1 for 90 degree turns
+            cross_product(d0, d1)
+        })
+        .sum::<i32>()
+}
+
+fn inside(sketch: &Sketch, loop_positions: &[Coord]) -> usize {
+    if winding(loop_positions) < 0 {
+        // make it clockwise
+        let flipped = loop_positions.iter().rev().copied().collect::<Vec<_>>();
+        return inside(sketch, &flipped);
+    }
     let mut visit_map = HashMap::new();
-    let mut fill = |coord: Coord| do_fill(sketch, map, loop_positions, coord, &mut visit_map);
+    for &p in loop_positions {
+        // stop the fill without a separate test in do_fill()
+        visit_map.insert(p, 'x');
+    }
+    let mut fill = |coord: Coord| do_fill(sketch, coord, &mut visit_map);
     for (p0, p1) in loop_positions.iter().zip(loop_positions.iter().skip(1)) {
         // compass directions would be more appropriate but I'm not good with them
         let dir = (p1.0 - p0.0, p1.1 - p0.1);
@@ -76,11 +97,15 @@ fn inside(sketch: &Sketch, map: &Map, loop_positions: &[Coord]) -> usize {
             _ => panic!("wat {} {:?}", sketch[p1.1 as usize][p1.0 as usize], dir),
         }
     }
-    for y in 0..maxy {
-        for x in 0..maxx {
-            print!("{}", visit_map.get(&(x, y)).unwrap_or(&'?'));
+    if false {
+        let maxx = sketch[0].len() as i32;
+        let maxy = sketch.len() as i32;
+        for y in 0..maxy {
+            for x in 0..maxx {
+                print!("{}", visit_map.get(&(x, y)).unwrap_or(&'?'));
+            }
+            println!();
         }
-        println!();
     }
     visit_map.iter().filter(|&(_, &v)| v == 'I').count()
 }
@@ -97,7 +122,7 @@ fn parse(file: &str) -> (Sketch, Map, Coord) {
             let y = y as i32;
             let xy = (x, y);
             match ch {
-                // these pairs must be in consistent order such that .0 always loops clockwise
+                // the plan was to have these in consistent order such that .0 always loops clockwise
                 // but nope, straight pipes do not have direction
                 '|' => { map.insert(xy, ((x  , y-1), (x  , y+1))); },
                 '-' => { map.insert(xy, ((x+1, y  ), (x-1, y  ))); },
@@ -117,8 +142,6 @@ fn parse(file: &str) -> (Sketch, Map, Coord) {
         sketch.push(row);
     }
     let spos = spos.unwrap();
-    // also these so that .0 is cw
-    // but no, straights are hard
     let mut neighs = map.iter().filter(|(&_, &v)| v.0 == spos || v.1 == spos);
     let a = *neighs.next().unwrap().0;
     let b = *neighs.next().unwrap().0;
@@ -133,6 +156,5 @@ fn main() {
     let (sketch, map, spos) = parse(&file);
     let positions = loop_positions(&map, spos);
     println!("{}", positions.len() / 2);
-    println!("{}", inside(&sketch, &map, &positions));
-    println!("{}", inside(&sketch, &map, &positions.iter().rev().copied().collect::<Vec<_>>()));
+    println!("{}", inside(&sketch, &positions));
 }
