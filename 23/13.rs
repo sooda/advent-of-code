@@ -38,16 +38,39 @@ fn try_reflect_y(pat: &Pattern, mirror_y: i32) -> bool {
     true
 }
 
-fn summary(pat: &Pattern) -> i32 {
+fn summary(pat: &Pattern, ign: Option<(i32, i32)>) -> i32 {
     let maxx = *pat.keys().map(|(x, _)| x).max().unwrap();
     let maxy = *pat.keys().map(|(_, y)| y).max().unwrap();
-    let horiz = (0..maxx).filter(|&x| try_reflect_x(pat, x)).map(|x| x + 1).sum::<i32>();
-    let verti = (0..maxy).filter(|&y| try_reflect_y(pat, y)).map(|y| 100 * (y + 1)).sum::<i32>();
+    let horiz = (0..maxx).filter(|&x| try_reflect_x(pat, x) && Some((x, 0)) != ign).map(|x| x + 1).sum::<i32>();
+    let verti = (0..maxy).filter(|&y| try_reflect_y(pat, y) && Some((0, y)) != ign).map(|y| 100 * (y + 1)).sum::<i32>();
     horiz + verti
 }
 
+fn summary_smudgy(pat: &Pattern) -> i32 {
+    let origscore = summary(pat, None);
+    // must cause a different reflection line to be valid
+    let origpos = if origscore < 100 {
+        Some((origscore - 1, 0))
+    } else {
+        Some((0, (origscore - 1) / 100))
+    };
+    for (k, v) in pat {
+        let mut unsmudged = pat.clone();
+        unsmudged.insert(*k, !v);
+        let s = summary(&unsmudged, origpos);
+        if s != 0 {
+            return s;
+        }
+    }
+    panic!()
+}
+
 fn all_summary(notes: &[Pattern]) -> i32 {
-    notes.iter().map(|p| summary(p)).sum()
+    notes.iter().map(|p| summary(p, None)).sum()
+}
+
+fn all_summary_smudgy(notes: &[Pattern]) -> i32 {
+    notes.iter().map(|p| summary_smudgy(p)).sum()
 }
 
 fn parse(file: &str) -> Vec<Pattern> {
@@ -71,4 +94,5 @@ fn main() {
     io::stdin().read_to_string(&mut file).unwrap();
     let notes = parse(&file);
     println!("{}", all_summary(&notes));
+    println!("{}", all_summary_smudgy(&notes));
 }
