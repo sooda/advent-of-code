@@ -50,15 +50,26 @@ fn energize(map: &Map, visited: &mut HashSet<(Coord, Coord)>, mut pos: Coord, mu
     }
 }
 
-fn tiles_energized(map: &Map) -> usize {
+fn tiles_energized(map: &Map, startpos: Coord, dir: Coord) -> usize {
     let mut visited = HashSet::new();
-    energize(map, &mut visited, (-1, 0), (1, 0));
+    energize(map, &mut visited, (startpos.0 - dir.0, startpos.1 - dir.1), dir);
     visited.iter().map(|&(pos, _dir)| pos).collect::<HashSet::<Coord>>().len()
+}
+
+fn max_tiles_energized(map: &Map) -> usize {
+    let w = map[0].len() as i32;
+    let h = map.len() as i32;
+    let left = (0..h).map(|y| tiles_energized(map, (0, y), (1, 0))).max().unwrap();
+    let right = (0..h).map(|y| tiles_energized(map, (w - 1, y), (-1, 0))).max().unwrap();
+    let top = (0..w).map(|x| tiles_energized(map, (x, 0), (0, 1))).max().unwrap();
+    let bot = (0..w).map(|x| tiles_energized(map, (x, h - 1), (0, -1))).max().unwrap();
+    [left, right, top, bot].into_iter().max().unwrap()
 }
 
 fn main() {
     let map = io::stdin().lock().lines()
         .map(|row| row.unwrap().chars().collect::<Vec<_>>())
         .collect::<Vec<_>>();
-    println!("{}", tiles_energized(&map));
+    println!("{}", tiles_energized(&map, (0, 0), (1, 0)));
+    println!("{}", max_tiles_energized(&map));
 }
