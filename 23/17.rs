@@ -56,7 +56,7 @@ fn walk(map: &Map, mut pos: Coords, delta: Coords, i: i32) -> i32 {
     result
 }
 
-fn dijkstra(map: &Map, entry_node: Node, exit_pos: Coords) -> i32 {
+fn dijkstra(map: &Map, entry_node: Node, exit_pos: Coords, minstraight: i32, maxstraight: i32) -> i32 {
     let entry_pos = entry_node.pos;
     let startscore = Score { heat_loss: Reverse(0), dist_to_goal: Reverse(distance(exit_pos, entry_pos)) };
     let startnode = entry_node;
@@ -92,7 +92,7 @@ fn dijkstra(map: &Map, entry_node: Node, exit_pos: Coords) -> i32 {
 
         let next_dir = [cw(node.heading), ccw(node.heading)];
         for dir in next_dir {
-            for i in 1..=3 {
+            for i in minstraight..=maxstraight {
                 let next_pos = sum(node.pos, (i * dir.0, i * dir.1));
                 let next_node = Node { pos: next_pos, heading: dir };
                 if let Some(&_edge_cost) = map.get(&next_pos) {
@@ -119,8 +119,16 @@ fn least_heat_loss(map: &Map) -> i32 {
     let maxx = map.keys().map(|p| p.0).max().unwrap();
     let maxy = map.keys().map(|p| p.1).max().unwrap();
     // FIXME: add both to starting set. this is fast enough now
-    let horiz = dijkstra(map, Node { pos: (0, 0), heading: (1, 0) }, (maxx, maxy));
-    let verti = dijkstra(map, Node { pos: (0, 0), heading: (0, 1) }, (maxx, maxy));
+    let horiz = dijkstra(map, Node { pos: (0, 0), heading: (1, 0) }, (maxx, maxy), 1, 3);
+    let verti = dijkstra(map, Node { pos: (0, 0), heading: (0, 1) }, (maxx, maxy), 1, 3);
+    horiz.min(verti)
+}
+
+fn least_heat_loss_ultra(map: &Map) -> i32 {
+    let maxx = map.keys().map(|p| p.0).max().unwrap();
+    let maxy = map.keys().map(|p| p.1).max().unwrap();
+    let horiz = dijkstra(map, Node { pos: (0, 0), heading: (1, 0) }, (maxx, maxy), 4, 10);
+    let verti = dijkstra(map, Node { pos: (0, 0), heading: (0, 1) }, (maxx, maxy), 4, 10);
     horiz.min(verti)
 }
 
@@ -141,4 +149,5 @@ fn main() {
         .collect::<Vec<_>>();
     let map = parse_map(&rows);
     println!("{}", least_heat_loss(&map));
+    println!("{}", least_heat_loss_ultra(&map));
 }
