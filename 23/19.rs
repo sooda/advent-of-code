@@ -62,6 +62,75 @@ fn accepted_part_numbers(workflows: &[Workflow], parts: &[Part]) -> i32 {
         .sum()
 }
 
+fn splice_left(mut lo: Part, mut hi: Part, idx: usize, less_than: i32) -> (Part, Part) {
+    // a < 2006: --lo--<++hi++
+    // [old lo, new hi] matches, on the left
+    hi[idx] = hi[idx].min(less_than - 1);
+    // [new lo, old hi] remaining, on the right
+    lo[idx] = less_than;
+    (hi, lo)
+}
+
+fn splice_right(mut lo: Part, mut hi: Part, idx: usize, greater_than: i32) -> (Part, Part) {
+    // a > 2006: --lo-->++hi++
+    // [old lo, new hi] remaining, on the left
+    hi[idx] = greater_than;
+    // [new lo, old hi] matches, on the right
+    lo[idx] = lo[idx].max(greater_than + 1);
+    (hi, lo)
+}
+
+fn range_count(workflows: &HashMap<&str, &Workflow>, current: &str, mut lo: Part, mut hi: Part) -> usize {
+    assert!(lo[0] <= hi[0]);
+    assert!(lo[1] <= hi[1]);
+    assert!(lo[2] <= hi[2]);
+    assert!(lo[3] <= hi[3]);
+
+    if current == "A" {
+        // accept
+        let a = lo.iter().zip(hi).map(|(l, h)| h - l + 1).fold(1, |acc, x| acc * x as usize);
+        a
+    } else if current == "R" {
+        // reject
+        0
+    } else {
+        let mut count = 0;
+        for r in &workflows.get(current).unwrap().rules {
+            match r.cmp_type {
+                Cmp::Lt => {
+                    if lo[r.part_prop] < r.cmp {
+                        let (mid_left, mid_right) = splice_left(lo, hi, r.part_prop, r.cmp);
+                        // seek [lo, mid-1]
+                        count += range_count(workflows, &r.dest, lo, mid_left);
+                        // remaining with [mid, hi]
+                        lo = mid_right;
+                    }
+                },
+                Cmp::Gt => {
+                    if hi[r.part_prop] > r.cmp {
+                        let (mid_left, mid_right) = splice_right(lo, hi, r.part_prop, r.cmp);
+                        // seek [mid+1, hi]
+                        count += range_count(workflows, &r.dest, mid_right, hi);
+                        // remaining with [lo, mid]
+                        hi = mid_left;
+                    }
+                },
+                Cmp::Nop => {
+                    count += range_count(workflows, &r.dest, lo, hi);
+                }
+            }
+        }
+        count
+    }
+}
+
+fn accepted_combinations(workflows: &[Workflow]) -> usize {
+    let workflows = workflows.iter()
+        .map(|wf| (&wf.name as &str, wf))
+        .collect::<HashMap<_, _>>();
+    range_count(&workflows, "in", [1, 1, 1, 1], [4000, 4000, 4000, 4000])
+}
+
 fn parse_workflows(inp: &str) -> Vec<Workflow> {
     // px{a<2006:qkq,m>2090:A,rfg}
     let re = Regex::new(r"([[:alpha:]]+)\{(.*),([[:alpha:]]+)\}").unwrap();
@@ -116,4 +185,5 @@ fn main() {
     io::stdin().read_to_string(&mut file).unwrap();
     let (workflows, parts) = parse(&file);
     println!("{}", accepted_part_numbers(&workflows, &parts));
+    println!("{}", accepted_combinations(&workflows));
 }
