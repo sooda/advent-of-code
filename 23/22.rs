@@ -59,9 +59,10 @@ fn drop_brick(b: Brick, z: u32) -> Brick {
     ((b.0.0, b.0.1, z), (b.1.0, b.1.1, z + (b.1.2 - b.0.2)))
 }
 
-fn settle(mut bricks: Vec<Brick>) -> Vec<Brick> {
+fn settle(mut bricks: Vec<Brick>) -> (Vec<Brick>, usize) {
     let mut settled = Vec::<Brick>::new();
     bricks.sort_unstable_by_key(|a| a.0.2.min(a.1.2));
+    let mut dropped = 0;
     'outer: for b in bricks {
         let z_min = b.0.2.min(b.1.2);
         let b_xrange = (b.0.0, b.1.0);
@@ -72,15 +73,33 @@ fn settle(mut bricks: Vec<Brick>) -> Vec<Brick> {
                     overlap(b_xrange, (s.0.0, s.1.0)).is_some() &&
                     overlap(b_yrange, (s.0.1, s.1.1)).is_some()
             }) {
-                settled.push(drop_brick(b, below_z + 1));
+                let d = drop_brick(b, below_z + 1);
+                if d != b {
+                    dropped += 1;
+                }
+                settled.push(d);
                 continue 'outer;
             }
         }
         // no bricks found so it hit the floor
         // (and dug itself underground, no problem)
-        settled.push(drop_brick(b, 1));
+        let d = drop_brick(b, 1);
+        if d != b {
+            dropped += 1;
+        }
+        settled.push(d);
     }
-    settled
+    (settled, dropped)
+}
+
+fn sum_falls(bricks: &Vec<Brick>) -> usize {
+    let mut n = 0;
+    for i in 0..bricks.len() {
+        let mut bs = bricks.clone();
+        bs.remove(i);
+        n += settle(bs).1;
+    }
+    n
 }
 
 fn parse_brick(line: &str) -> Brick {
@@ -95,6 +114,7 @@ fn main() {
         .map(|row| parse_brick(&row.unwrap()))
         .collect::<Vec<_>>();
 
-    let bricks = settle(bricks);
+    let bricks = settle(bricks).0;
     println!("{}", disintegratable(&bricks));
+    println!("{}", sum_falls(&bricks));
 }
