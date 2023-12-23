@@ -48,18 +48,19 @@ fn dfs(map: &TileMap, prev_node: Coord, since_prev: usize, pos: Coord, end_node:
     }
 }
 
-// lots of redoing but the graph is so small that couldn't be bothered to cache
-fn max_distance(graph: &Graph, current: Coord, end: Coord) -> usize {
+fn max_distance(graph: &Graph, current: Coord, end: Coord, mut visited: HashSet<Coord>) -> Option<usize> {
+    if !visited.insert(current) {
+        return None;
+    }
     if current == end {
-        0
+        Some(0)
     } else {
         graph.get(&current).unwrap()
             .iter()
-            .map(|&(neighnode, dist)| {
-                dist + max_distance(graph, neighnode, end)
+            .filter_map(|&(neighnode, dist)| {
+                max_distance(graph, neighnode, end, visited.clone()).map(|d| d + dist)
             })
             .max()
-            .unwrap()
     }
 }
 
@@ -67,9 +68,28 @@ fn longest_hike(map: &TileMap) -> usize {
     let start = (1, 0);
     let end = (map[0].len() as i32 - 2, map.len() as i32 - 1);
     let mut graph = Graph::new();
-    let mut visited = HashSet::new();
-    dfs(map, start, 0, start, end, &mut graph, &mut visited);
-    max_distance(&graph, start, end)
+    dfs(map, start, 0, start, end, &mut graph, &mut HashSet::new());
+    if false {
+        println!("digraph G {{");
+        for (k, v) in &graph {
+            for (vi, dist) in v {
+                println!("n_{}_{} -> n_{}_{} [label=\"{}\"]", k.0, k.1, vi.0, vi.1, dist);
+            }
+        }
+        println!("}}");
+    }
+    max_distance(&graph, start, end, HashSet::new()).unwrap()
+}
+
+fn longest_hike_uphill(map: &TileMap) -> usize {
+    let map: TileMap = map.iter()
+        .map(|row| {
+            row.iter()
+                .map(|&ch| if ch == '#' { '#' } else { '.' })
+                .collect()
+        })
+        .collect();
+    longest_hike(&map)
 }
 
 fn main() {
@@ -78,4 +98,5 @@ fn main() {
         .collect::<Vec<_>>();
 
     println!("{}", longest_hike(&tiles));
+    println!("{}", longest_hike_uphill(&tiles));
 }
