@@ -48,17 +48,19 @@ fn dfs(map: &TileMap, prev_node: Coord, since_prev: usize, pos: Coord, end_node:
     }
 }
 
-fn max_distance(graph: &Graph, current: Coord, end: Coord, mut visited: HashSet<Coord>) -> Option<usize> {
-    if !visited.insert(current) {
+fn max_distance(graph: &Graph, current: Coord, end: Coord, visited: &HashSet<Coord>) -> Option<usize> {
+    if visited.contains(&current) {
         return None;
     }
     if current == end {
         Some(0)
     } else {
+        let mut visited = visited.clone();
+        visited.insert(current);
         graph.get(&current).unwrap()
             .iter()
             .filter_map(|&(neighnode, dist)| {
-                max_distance(graph, neighnode, end, visited.clone()).map(|d| d + dist)
+                max_distance(graph, neighnode, end, &visited).map(|d| d + dist)
             })
             .max()
     }
@@ -78,7 +80,7 @@ fn longest_hike(map: &TileMap) -> usize {
         }
         println!("}}");
     }
-    max_distance(&graph, start, end, HashSet::new()).unwrap()
+    max_distance(&graph, start, end, &HashSet::new()).unwrap()
 }
 
 fn longest_hike_uphill(map: &TileMap) -> usize {
