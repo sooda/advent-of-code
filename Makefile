@@ -1,8 +1,8 @@
 # Because cargo would be so boring for the puzzles, let's learn to use plain rustc.
 
 THIS_DAY := $(shell date +%d)
-THIS_YEAR := $(patsubst %,23/%,$(shell seq $(THIS_DAY)))
-YEARS := $(shell seq 16 22)
+THIS_YEAR := $(patsubst %,24/%,$(shell seq $(THIS_DAY)))
+YEARS := $(shell seq 16 23)
 DAYS := $(shell seq 1 25)
 
 OPTS := -g -O --edition=2021
