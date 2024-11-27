@@ -56,15 +56,15 @@ fn walk(map: &Map, mut pos: Coords, delta: Coords, i: i32) -> i32 {
     result
 }
 
-fn dijkstra(map: &Map, entry_node: Node, exit_pos: Coords, minstraight: i32, maxstraight: i32) -> i32 {
-    let entry_pos = entry_node.pos;
-    let startscore = Score { heat_loss: Reverse(0), dist_to_goal: Reverse(distance(exit_pos, entry_pos)) };
-    let startnode = entry_node;
+fn dijkstra(map: &Map, entry_node: &[Node], exit_pos: Coords, minstraight: i32, maxstraight: i32) -> i32 {
     let mut heap: BinaryHeap<State> = BinaryHeap::new();
     let mut parent = HashMap::new();
     let mut dists = HashMap::new();
-    heap.push(State { score: startscore, node: startnode });
-    dists.insert(startnode, 0);
+    for &node in entry_node {
+        let startscore = Score { heat_loss: Reverse(0), dist_to_goal: Reverse(distance(exit_pos, node.pos)) };
+        heap.push(State { score: startscore, node: node });
+        dists.insert(node, 0);
+    }
 
     let mut push = |h: &mut BinaryHeap<_>, dists: &mut HashMap<_, _>, state: State, prev: Node| {
         let score = state.score;
@@ -115,21 +115,22 @@ fn dijkstra(map: &Map, entry_node: Node, exit_pos: Coords, minstraight: i32, max
     panic!("no route");
 }
 
-fn least_heat_loss(map: &Map) -> i32 {
+fn search(map: &Map, minstraight: i32, maxstraight: i32) -> i32 {
     let maxx = map.keys().map(|p| p.0).max().unwrap();
     let maxy = map.keys().map(|p| p.1).max().unwrap();
-    // FIXME: add both to starting set. this is fast enough now
-    let horiz = dijkstra(map, Node { pos: (0, 0), heading: (1, 0) }, (maxx, maxy), 1, 3);
-    let verti = dijkstra(map, Node { pos: (0, 0), heading: (0, 1) }, (maxx, maxy), 1, 3);
-    horiz.min(verti)
+    let starts = &[
+        Node { pos: (0, 0), heading: (1, 0) },
+        Node { pos: (0, 0), heading: (0, 1) },
+    ];
+    dijkstra(map, starts, (maxx, maxy), minstraight, maxstraight)
+}
+
+fn least_heat_loss(map: &Map) -> i32 {
+    search(map, 1, 3)
 }
 
 fn least_heat_loss_ultra(map: &Map) -> i32 {
-    let maxx = map.keys().map(|p| p.0).max().unwrap();
-    let maxy = map.keys().map(|p| p.1).max().unwrap();
-    let horiz = dijkstra(map, Node { pos: (0, 0), heading: (1, 0) }, (maxx, maxy), 4, 10);
-    let verti = dijkstra(map, Node { pos: (0, 0), heading: (0, 1) }, (maxx, maxy), 4, 10);
-    horiz.min(verti)
+    search(map, 4, 10)
 }
 
 fn parse_map(rows: &[String]) -> Map {
