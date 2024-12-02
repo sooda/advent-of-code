@@ -17,6 +17,20 @@ fn safe_count(reports: &[Vec<i32>]) -> usize {
     reports.iter().filter(|r| safe(r)).count()
 }
 
+fn dampened_safe(report: &[i32]) -> bool {
+    (0..report.len()).any(|i| {
+        let mut r = report.to_vec();
+        r.remove(i);
+        safe(&r)
+    })
+}
+
+fn safe_dampened_count(reports: &[Vec<i32>]) -> usize {
+    reports.iter()
+        .filter(|r| safe(r) || (r.len() > 1 && dampened_safe(r)))
+        .count()
+}
+
 fn main() {
     let reports: Vec<Vec<i32>> = io::stdin().lock().lines()
         .map(|line| line.unwrap()
@@ -24,5 +38,6 @@ fn main() {
              .map(|x| x.parse::<i32>().unwrap()).collect()
             ).collect();
     println!("{}", safe_count(&reports));
+    println!("{}", safe_dampened_count(&reports));
 }
 
