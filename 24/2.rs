@@ -1,15 +1,14 @@
 use std::io::{self, BufRead};
 
 fn safe(report: &[i32]) -> bool {
-    let same_direction = report.iter()
+    let mut pairs = report.iter()
         .zip(report.iter().skip(1))
-        .map(|(a, b)| (a - b).signum())
-        .sum::<i32>().abs() == (report.len() as i32 - 1);
-    let good_diffs = report.iter()
-        .zip(report.iter().skip(1))
-        .map(|(a, b)| (a - b).abs())
-        .filter(|&n| n >= 1 && n <= 3)
-        .count() == report.len() - 1;
+        .map(|(a, b)| (a - b));
+    let same_direction = pairs.clone()
+        .map(|delta| delta.signum())
+        .sum::<i32>().abs() == report.len() as i32 - 1;
+    let good_diffs = pairs
+        .all(|delta| delta.abs() >= 1 && delta.abs() <= 3);
     same_direction && good_diffs
 }
 
@@ -40,4 +39,3 @@ fn main() {
     println!("{}", safe_count(&reports));
     println!("{}", safe_dampened_count(&reports));
 }
-
