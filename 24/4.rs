@@ -39,10 +39,55 @@ fn xmas_count(map: &[Vec<char>]) -> usize {
     sum
 }
 
+// M.S
+// .A.
+// M.S
+fn try_x_mas(map: &[Vec<char>], pos: (usize, usize)) -> usize {
+    let (x, y) = pos;
+    if map[y - 1][x - 1] == 'M' && map[y - 1][x + 1] == 'S' &&
+            map[y][x] == 'A' &&
+            map[y + 1][x - 1] == 'M' && map[y + 1][x + 1] == 'S' {
+        1
+    } else {
+        0
+    }
+}
+
+// counterclockwise
+fn flip(map: Vec<Vec<char>>) -> Vec<Vec<char>> {
+    let w = map[0].len();
+    let h = map.len();
+    let mut next = vec![vec!['.'; h]; w];
+    // (x, 0) becomes (0, max-x),
+    // (max, y) becomes (y, 0), ...
+    for y in 0..h {
+        for x in 0..w {
+            next[w - 1 - x][y] = map[y][x];
+        }
+    }
+    next
+}
+
+fn x_mas_count(mut map: Vec<Vec<char>>) -> usize {
+    let w = map[0].len();
+    let h = map.len();
+    let mut sum = 0;
+    for _ in 0..4 {
+        for y in 1..(h-1) {
+            for x in 1..(w-1) {
+                sum += try_x_mas(&map, (x, y));
+            }
+        }
+        map = flip(map);
+    }
+    sum
+}
+
 fn main() {
     let map: Vec<Vec<char>> = io::stdin().lock().lines()
         .map(
             |line| line.unwrap().chars().collect()
             ).collect();
     println!("{}", xmas_count(&map));
+    println!("{}", x_mas_count(map));
 }
