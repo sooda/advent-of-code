@@ -1,4 +1,5 @@
 use std::io::{self, Read};
+use std::cmp::Ordering;
 
 type Rule = (i32, i32);
 type Update = Vec<i32>;
@@ -25,6 +26,27 @@ fn middles_of_corrects(rules: &[Rule], updates: &[Update]) -> i32 {
         .sum()
 }
 
+fn repair(mut update: Update, rules: &[Rule]) -> Update {
+    update.sort_by(|&a, &b| {
+        if rules.iter().any(|r| a == r.0 && b == r.1) {
+            Ordering::Less
+        } else if rules.iter().any(|r| a == r.1 && b == r.0) {
+            Ordering::Greater
+        } else {
+            Ordering::Equal
+        }
+    });
+    update
+}
+
+fn middles_of_repaired(rules: &[Rule], updates: &[Update]) -> i32 {
+    updates.iter()
+        .filter(|u| !update_ok(u, rules))
+        .map(|u| repair(u.clone(), rules))
+        .map(|u| u[u.len() / 2])
+        .sum()
+}
+
 fn parse(file: &str) -> (Vec<Rule>, Vec<Update>) {
     let mut sp = file.split("\n\n");
     let rules = sp.next().unwrap()
@@ -46,4 +68,5 @@ fn main() {
     io::stdin().read_to_string(&mut file).unwrap();
     let (rules, updates) = parse(&file);
     println!("{:?}", middles_of_corrects(&rules, &updates));
+    println!("{:?}", middles_of_repaired(&rules, &updates));
 }
