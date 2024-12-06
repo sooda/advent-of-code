@@ -1,4 +1,5 @@
 use std::io::{self, BufRead};
+use std::collections::HashSet;
 
 type Map = Vec<Vec<char>>;
 
@@ -11,14 +12,19 @@ fn start_pos(map: &Map) -> (i32, i32) {
     (x as i32, y as i32)
 }
 
-fn route_positions(map: &Map) -> usize {
+fn route_positions(map: &Map) -> Option<usize> {
     let (mut x, mut y) = start_pos(map);
     let (mut dx, mut dy) = (0, -1); // up
     let w = map[0].len() as i32;
     let h = map.len() as i32;
     let mut positions = vec![vec![false; map[0].len()]; map.len()];
+    let mut visits = HashSet::new();
     loop {
         positions[y as usize][x as usize] = true;
+        if !visits.insert(((x, y), (dx, dy))) {
+            // cycle, can't get to the end
+            return None;
+        }
         if (x == 0 && dx == -1) ||
                 (x == w-1 && dx == 1) ||
                 (y == 0 && dy == -1) ||
@@ -31,9 +37,26 @@ fn route_positions(map: &Map) -> usize {
         x += dx;
         y += dy;
     }
-    positions.into_iter()
+    Some(positions.into_iter()
         .map(|row| row.into_iter().filter(|&x| x).count())
-        .sum()
+        .sum())
+}
+
+fn possible_obstruction(map: &Map, x: usize, y: usize) -> bool {
+    if map[y][x] != '.' {
+        false
+    } else {
+        let mut map = map.clone();
+        map[y][x] = '#';
+        route_positions(&map).is_none()
+    }
+}
+
+fn possible_obstructions(map: &Map) -> usize {
+    (0..map.len())
+        .flat_map(|y| (0..map[0].len()).map(move |x| (x, y)))
+        .filter(|&(x, y)| possible_obstruction(&map, x, y))
+        .count()
 }
 
 fn main() {
@@ -41,5 +64,6 @@ fn main() {
         .map(|line| line.unwrap()
              .chars().collect()
             ).collect();
-    println!("{}", route_positions(&map));
+    println!("{}", route_positions(&map).unwrap());
+    println!("{}", possible_obstructions(&map));
 }
