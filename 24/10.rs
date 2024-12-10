@@ -21,9 +21,37 @@ impl Map {
             None
         }
     }
+    fn iter(&self) -> impl Iterator<Item = (Pos, i32)> + '_ {
+        self.0.iter().enumerate()
+            .flat_map(|(y, row)| {
+                row.iter()
+                    .enumerate()
+                    .map(move |(x, &h)| ((x as i32, y as i32), h))
+            })
+    }
 }
 
-fn search(map: &Map, pos: Pos, target: i32, visits: &mut HashSet<Pos>) -> i32 {
+trait Mem {
+    fn insert(&mut self, pos: Pos) -> bool;
+}
+
+#[derive(Clone)]
+struct MemSet(HashSet<Pos>);
+impl Mem for MemSet {
+    fn insert(&mut self, pos: Pos) -> bool {
+        self.0.insert(pos)
+    }
+}
+
+#[derive(Clone)]
+struct MemNop;
+impl Mem for MemNop {
+    fn insert(&mut self, _: Pos) -> bool {
+        true
+    }
+}
+
+fn search(map: &Map, pos: Pos, target: i32, visits: &mut dyn Mem) -> i32 {
     if !visits.insert(pos) {
         return 0;
     }
@@ -48,57 +76,11 @@ fn search(map: &Map, pos: Pos, target: i32, visits: &mut HashSet<Pos>) -> i32 {
     }
 }
 
-fn score(map: &Map, p: Pos) -> i32 {
-    search(map, p, 1, &mut HashSet::new())
-}
-
-fn trailhead_scores(map: &Map) -> i32 {
-    let mut total = 0;
-    for (y, row) in map.0.iter().enumerate() {
-        for (x, &h) in row.iter().enumerate() {
-            if h == 0 {
-                total += score(map, (x as i32, y as i32));
-            }
-        }
-    }
-    total
-}
-
-fn search2(map: &Map, pos: Pos, target: i32, visits: &mut HashSet<Pos>) -> i32 {
-    if let Some(h) = map.at(pos) {
-        if h == 9 {
-            1
-        } else {
-            let (x, y) = pos;
-            [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)].into_iter()
-                .map(|neigh| {
-                    if map.at(neigh) == Some(target) {
-                        search2(map, neigh, target + 1, visits)
-                    } else {
-                        0
-                    }
-                })
-            .sum()
-        }
-    } else {
-        0
-    }
-}
-
-fn rating(map: &Map, p: Pos) -> i32 {
-    search2(map, p, 1, &mut HashSet::new())
-}
-
-fn trailhead_ratings(map: &Map) -> i32 {
-    let mut total = 0;
-    for (y, row) in map.0.iter().enumerate() {
-        for (x, &h) in row.iter().enumerate() {
-            if h == 0 {
-                total += rating(map, (x as i32, y as i32));
-            }
-        }
-    }
-    total
+fn trailhead_measure<T: Mem + Clone>(map: &Map, mem: T) -> i32 {
+    map.iter()
+        .filter(|&(_, h)| h == 0)
+        .map(|(pos, _)| search(map, pos, 1, &mut mem.clone()))
+        .sum()
 }
 
 fn main() {
@@ -106,6 +88,6 @@ fn main() {
         .map(|line| line.unwrap()
              .bytes().map(|c| (c - b'0') as i32).collect::<Vec<_>>()
             ).collect::<Vec<_>>());
-    println!("{}", trailhead_scores(&map));
-    println!("{}", trailhead_ratings(&map));
+    println!("{}", trailhead_measure(&map, MemSet(HashSet::new())));
+    println!("{}", trailhead_measure(&map, MemNop));
 }
