@@ -28,33 +28,26 @@ fn blink(mut stones: Vec<u128>, blinks: usize) -> usize {
 }
 
 fn blink_faster(stones: &[u128], blinks: usize) -> usize {
-    let mut expansion = HashMap::<u128, (u128, Option<u128>)>::new();
-    expansion.insert(0, (1, None));
     let mut collection = HashMap::<u128, usize>::new();
     let mut next_collection = HashMap::<u128, usize>::new();
     for &s in stones {
         *collection.entry(s).or_insert(0) += 1;
     }
-    let inc = |hm: &mut HashMap<_, _>, k, v| *hm.entry(k).or_insert(0) += v;
     for _ in 0..blinks {
         next_collection.clear();
         for (&stone, &count) in &collection {
-            if let Some(data) = expansion.get(&stone) {
-                inc(&mut next_collection, data.0, count);
-                if let Some(s) = data.1 {
-                    inc(&mut next_collection, s, count);
-                }
+            let mut inc = |k| *next_collection.entry(k).or_insert(0) += count;
+            if stone == 0 {
+                inc(1);
             } else {
                 let digits = stone.ilog10() + 1;
                 if digits % 2 == 0 {
                     let base = 10u128.pow(digits / 2);
                     let (a, b) = (stone / base, stone % base);
-                    expansion.insert(stone, (a, Some(b)));
-                    inc(&mut next_collection, a, count);
-                    inc(&mut next_collection, b, count);
+                    inc(a);
+                    inc(b);
                 } else {
-                    expansion.insert(stone, (stone * 2024, None));
-                    inc(&mut next_collection, stone * 2024, count);
+                    inc(stone * 2024);
                 }
             }
         }
