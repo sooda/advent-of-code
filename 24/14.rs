@@ -21,6 +21,20 @@ fn count(robots: &[Robot], min: Pos, max: Pos) -> usize {
         .count()
 }
 
+fn dump(robots: &[Robot], size: (i32, i32)) {
+    for y in 0..size.1 {
+        for x in 0..size.0 {
+            if robots.iter().any(|&(p, _)| p == (x, y)) {
+                print!("#");
+            } else {
+                print!(".");
+            }
+        }
+        println!();
+    }
+    println!();
+}
+
 fn safety_factor(robots: &mut [Robot], w: i32, h: i32, n: usize) -> usize {
     let size = (w, h);
     for _ in 0..n {
@@ -33,6 +47,21 @@ fn safety_factor(robots: &mut [Robot], w: i32, h: i32, n: usize) -> usize {
         count(robots, (w/2+1, 0), (w, h/2)) *
         count(robots, (0, h/2+1), (w/2, h)) *
         count(robots, (w/2+1, h/2+1), (w, h))
+}
+
+fn christmas_tree(robots: &mut [Robot], w: i32, h: i32) -> usize {
+    let size = (w, h);
+    for i in 1..99999 {
+        for r in &mut *robots {
+            r.0 = add(r.0, r.1);
+            r.0 = mod_(add(r.0, size), size);
+        }
+        if true {
+            println!("after {} seconds:", i);
+            dump(robots, size);
+        }
+    }
+    0
 }
 
 fn parse(line: &str) -> Robot {
@@ -48,5 +77,6 @@ fn main() {
         .map(|line| parse(&line.unwrap()))
         .collect();
     println!("{}", safety_factor(&mut robots.clone(), 11, 7, 100));
-    println!("{}", safety_factor(&mut robots, 101, 103, 100));
+    println!("{}", safety_factor(&mut robots.clone(), 101, 103, 100));
+    println!("{}", christmas_tree(&mut robots, 101, 103));
 }
