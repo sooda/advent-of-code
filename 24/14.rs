@@ -51,12 +51,13 @@ fn safety_factor(robots: &mut [Robot], w: i32, h: i32, n: usize) -> usize {
 
 fn christmas_tree(robots: &mut [Robot], w: i32, h: i32) -> usize {
     let size = (w, h);
+    let (a, b) = (14, 78); // perhaps just for my input
     for i in 1..99999 {
         for r in &mut *robots {
             r.0 = add(r.0, r.1);
             r.0 = mod_(add(r.0, size), size);
         }
-        if true {
+        if (i - a) % 101 == 0 || (i - b) % 103 == 0 {
             println!("after {} seconds:", i);
             dump(robots, size);
         }
