@@ -1,4 +1,5 @@
 use std::io::{self, BufRead};
+use std::collections::HashSet;
 
 extern crate regex;
 use regex::Regex;
@@ -49,6 +50,22 @@ fn safety_factor(robots: &mut [Robot], w: i32, h: i32, n: usize) -> usize {
         count(robots, (w/2+1, h/2+1), (w, h))
 }
 
+fn fill(robots: &mut HashSet<Pos>, p: Pos) -> usize {
+    if !robots.remove(&p) {
+        0
+    } else {
+        1 + [(-1, 0), (1, 0), (0, -1), (0, 1)]
+            .into_iter()
+            .map(|d| fill(robots, add(p, d)))
+            .sum::<usize>()
+    }
+}
+
+fn artistic_heuristic(robots: &mut [Robot]) -> usize {
+    let mut rob = robots.iter().map(|&(p, _)| p).collect::<HashSet<Pos>>();
+    robots.iter().map(|&(p, _)| fill(&mut rob, p)).max().unwrap()
+}
+
 fn christmas_tree(robots: &mut [Robot], w: i32, h: i32) -> usize {
     let size = (w, h);
     let (a, b) = (14, 78); // perhaps just for my input
@@ -57,12 +74,17 @@ fn christmas_tree(robots: &mut [Robot], w: i32, h: i32) -> usize {
             r.0 = add(r.0, r.1);
             r.0 = mod_(add(r.0, size), size);
         }
+        let h = artistic_heuristic(robots);
+        println!("after {} seconds h {}", i, h);
         if (i - a) % 101 == 0 || (i - b) % 103 == 0 {
-            println!("after {} seconds:", i);
             dump(robots, size);
         }
+        // arbitrary "good enough" limit
+        if h > 40 {
+            return i;
+        }
     }
-    0
+    panic!()
 }
 
 fn parse(line: &str) -> Robot {
