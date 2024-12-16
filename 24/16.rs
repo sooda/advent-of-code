@@ -1,6 +1,6 @@
 use std::io::{self, BufRead};
 use std::ops::{Index, IndexMut};
-use std::collections::{HashMap, BinaryHeap};
+use std::collections::{HashMap, HashSet, BinaryHeap};
 use std::cmp::Reverse;
 
 type Data = char;
@@ -64,43 +64,93 @@ fn left(p: Pos) -> Pos {
     right(right(right(p)))
 }
 
-fn dijkstra(map: &Map, start: (Pos, Pos), end: &[(Pos, Pos)]) -> usize {
+// pose to cost
+type Distances = HashMap<(Pos, Pos), usize>;
+// backwards to start
+type Edges = HashMap<(Pos, Pos), HashSet<(Pos, Pos)>>;
+
+fn dijkstra(map: &Map, start: (Pos, Pos)) -> (Distances, Edges) {
     let mut heap: BinaryHeap::<(Reverse<usize>, (Pos, Pos))> = BinaryHeap::new(); // dist, pose
-    let mut distances = HashMap::<(Pos, Pos), usize>::new(); // pose to cost
+    let mut distances = Distances::new();
+    let mut edges = Edges::new();
     heap.push((Reverse(0), start));
+    distances.insert(start, 0);
 
     while let Some(current) = heap.pop() {
-        let (Reverse(dist_i), (pi, d)) = current;
+        let (Reverse(dist_i), (pi, di)) = current;
 
-        let mut run = |p: Pos, d: Pos, dist: usize| {
-            if dist < *distances.get(&(p, d)).unwrap_or(&std::usize::MAX) {
-                heap.push((Reverse(dist), (p, d)));
-                distances.insert((p, d), dist);
+        let mut run = |pj: Pos, dj: Pos, dist: usize| {
+            if dist <= *distances.get(&(pj, dj)).unwrap_or(&std::usize::MAX) {
+                heap.push((Reverse(dist), (pj, dj)));
+                distances.insert((pj, dj), dist);
+                edges.entry((pj, dj)).or_insert(HashSet::new()).insert((pi, di));
             }
         };
 
-        if map[add(pi, d)] != '#' {
-            run(add(pi, d), d, dist_i + 1);
+        if map[add(pi, di)] != '#' {
+            run(add(pi, di), di, dist_i + 1);
         }
-        run(pi, left(d), dist_i + 1000);
-        run(pi, right(d), dist_i + 1000);
+        run(pi, left(di), dist_i + 1000);
+        run(pi, right(di), dist_i + 1000);
     }
-
-    end.into_iter().map(|e| *distances.get(&e).unwrap()).min().unwrap()
+    (distances, edges)
 }
 
-fn lowest_score(map: &Map) -> usize {
+fn find(map: &Map) -> (Distances, Edges) {
     let start = map.iter().find(|&(_, ch)| ch == 'S').unwrap().0;
-    let end = map.iter().find(|&(_, ch)| ch == 'E').unwrap().0;
     // starts east, end doesn't have a favorable heading
-    dijkstra(&map,
-             (start, (1, 0)),
-             &[(end, (-1, 0)), (end, (1, 0)), (end, (0, -1)), (end, (0, 1))])
+    dijkstra(&map, (start, (1, 0)))
+}
+
+fn lowest_score(map: &Map, distances: &Distances) -> usize {
+    let end = map.iter().find(|&(_, ch)| ch == 'E').unwrap().0;
+    let ends = [(end, (-1, 0)), (end, (1, 0)), (end, (0, -1)), (end, (0, 1))];
+    ends.into_iter().map(|e| *distances.get(&e).unwrap()).min().unwrap()
+}
+
+fn dump(map: &Map, tiles: &HashSet<Pos>) {
+    for (y, row) in map.0.iter().enumerate() {
+        for (x, &ch) in row.iter().enumerate() {
+            print!("{}", if tiles.contains(&(x as i32, y as i32)) { 'O' } else { ch });
+        }
+        println!();
+    }
+    println!();
+}
+
+// this can't get in a cycle because that dijkstra gives us directions and dists thusly
+fn tiles(p: (Pos, Pos), best: usize, edges: &Edges, visited: &mut HashSet<Pos>, distances: &Distances) {
+    visited.insert(p.0);
+    // must have distances because this path leads to end by definition
+    let dist = *distances.get(&p).unwrap();
+    if let Some(next) = edges.get(&p) {
+        for &q in next {
+            let q_dist = *distances.get(&q).unwrap();
+            let edge_cost = if p.0 == q.0 { 1000 } else { 1 };
+            // valid move on the shortest path? don't take detours and then join back again
+            if dist == q_dist + edge_cost {
+                tiles(q, best, edges, visited, distances);
+            }
+        }
+    }
+}
+
+fn best_paths_tiles(map: &Map, distances: &Distances, edges: &Edges) -> usize {
+    let end = map.iter().find(|&(_, ch)| ch == 'E').unwrap().0;
+    let ends = [(end, (-1, 0)), (end, (1, 0)), (end, (0, -1)), (end, (0, 1))];
+    let (best, endpose) = ends.into_iter().map(|e| (*distances.get(&e).unwrap(), e)).min().unwrap();
+    let mut ts = HashSet::new();
+    // this search stops at the start node that doesn't have edges anymore
+    tiles(endpose, best, &edges, &mut ts, &distances);
+    if false { dump(map, &ts); }
+    ts.len()
 }
 
 fn main() {
     let map = Map(io::stdin().lock().lines()
         .map(|line| line.unwrap().chars().collect())
         .collect());
-    println!("{:?}", lowest_score(&map));
+    let (distances, edges) = find(&map);
+    println!("{:?}", lowest_score(&map, &distances));
+    println!("{:?}", best_paths_tiles(&map, &distances, &edges));
 }
