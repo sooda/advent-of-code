@@ -52,7 +52,7 @@ fn add(a: Pos, b: Pos) -> Pos {
 
 type Distances = HashMap<Pos, usize>;
 
-fn dijkstra(map: &Map, start: Pos) -> Distances {
+fn dijkstra(map: &Map, start: Pos, end: Pos) -> Distances {
     let mut heap: BinaryHeap::<(Reverse<usize>, Pos)> = BinaryHeap::new();
     let mut distances = Distances::new();
     heap.push((Reverse(0), start));
@@ -60,6 +60,9 @@ fn dijkstra(map: &Map, start: Pos) -> Distances {
 
     while let Some(current) = heap.pop() {
         let (Reverse(dist_i), pi) = current;
+        if pi == end {
+            break;
+        }
 
         let mut run = |pj: Pos, dist: usize| {
             if dist < *distances.get(&pj).unwrap_or(&std::usize::MAX) {
@@ -87,8 +90,23 @@ fn steps_after_fall(positions: &[Pos], size: i32, simulation: usize) -> Option<u
         }
         map[p] = true;
     }
-    let distances = dijkstra(&map, (0, 0));
-    distances.get(&(size-1, size-1)).map(|n| *n)
+    let end = (size - 1, size - 1);
+    let distances = dijkstra(&map, (0, 0), end);
+    distances.get(&end).map(|n| *n)
+}
+
+fn first_blocking_fall(positions: &[Pos], size: i32) -> Option<Pos> {
+    let mut map = Map(vec![vec![false; size as usize]; size as usize]);
+    let end = (size - 1, size - 1);
+    for &p in positions {
+        map[p] = true;
+        let distances = dijkstra(&map, (0, 0), end);
+        if !distances.contains_key(&end) {
+            return Some(p);
+        }
+    }
+    // sample input
+    None
 }
 
 fn parse(line: &str) -> Pos {
@@ -103,4 +121,5 @@ fn main() {
         .collect::<Vec<_>>();
     println!("{:?}", steps_after_fall(&positions, 7, 12));
     println!("{:?}", steps_after_fall(&positions, 71, 1024));
+    println!("{:?}", first_blocking_fall(&positions, 71));
 }
