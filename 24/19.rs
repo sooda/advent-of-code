@@ -1,26 +1,29 @@
 use std::io::{self, Read};
 use std::collections::HashMap;
 
-fn possible<'a>(towels: &[String], pattern: &'a str, mem: &mut HashMap<&'a str, bool>) -> bool {
+fn possible<'a>(towels: &[String], pattern: &'a str, mem: &mut HashMap<&'a str, usize>) -> usize {
     if let Some(&x) = mem.get(&pattern) {
-        return x;
+        x
+    } else {
+        let n = if pattern.len() == 0 {
+            1
+        } else {
+            towels.iter()
+                .filter(|&t| pattern.starts_with(t))
+                .map(|t| possible(towels, &pattern[t.len()..], mem))
+                .sum()
+        };
+        mem.insert(pattern, n);
+        n
     }
-    if pattern.len() == 0 {
-        mem.insert(pattern, true);
-        return true;
-    }
-    for t in towels {
-        if pattern.starts_with(t) && possible(towels, &pattern[t.len()..], mem) {
-            mem.insert(pattern, true);
-            return true;
-        }
-    }
-    mem.insert(pattern, false);
-    false
 }
 
 fn possible_designs(towels: &[String], patterns: &[String]) -> usize {
-    patterns.iter().filter(|pattern| possible(towels, &pattern, &mut HashMap::new())).count()
+    patterns.iter().filter(|pattern| possible(towels, &pattern, &mut HashMap::new()) > 0).count()
+}
+
+fn possible_design_ways(towels: &[String], patterns: &[String]) -> usize {
+    patterns.iter().map(|pattern| possible(towels, &pattern, &mut HashMap::new())).sum()
 }
 
 fn parse(file: &str) -> (Vec<String>, Vec<String>) {
@@ -46,5 +49,5 @@ fn main() {
     let (towels, patterns) = parse(&file);
 
     println!("{}", possible_designs(&towels, &patterns));
+    println!("{}", possible_design_ways(&towels, &patterns));
 }
-
