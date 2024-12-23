@@ -1,5 +1,4 @@
 use std::io::{self, Read};
-use std::collections::HashSet;
 
 /*
  * Program: 2,4, 1,5, 7,5, 0,3, 4,1, 1,6, 5,5, 3,0
@@ -46,42 +45,42 @@ fn executefast(i: i64) -> Vec<i64> {
 }
 
 // each 3 bits produce one digit but consume 10 bits because a/(2**(a%8)) that wraps % 8 after 1023
-fn search(computer: &Computer, have: i64, depth: usize, visited: &mut HashSet<(usize, i64)>) -> i64 {
-    if !visited.insert((depth, have)) {
-        return std::i64::MAX;
+// thus keep all high bits that match digits so far because those high bits affect the next two digits
+fn search(computer: &Computer, depth: usize) -> Vec<i64> {
+    if depth == computer.program.len() {
+        // no more bits here, boss. any more would produce extra digits
+        return vec![0];
     }
-    let mut best = std::i64::MAX;
-    for i in 0..1024 {
-        let next = have + (i << (3 * depth));
-        let out = if true {
-            run([next, 0, 0], &computer.program).0
-        } else {
-            // just for my input, to double check things
-            executefast(next)
-        };
 
-        if out.len() > computer.program.len() {
-            // too many digits so i must be too big from now on
-            break;
-        }
-
-        if out.len() >= depth+1 && out[0..=depth] == computer.program[0..=depth] {
-            let regval = if depth == computer.program.len() - 1 {
-                next
+    let mut ret = Vec::new();
+    let upper = search(computer, depth + 1);
+    for u in upper {
+        for i in 0..8 {
+            let next = u + (i << (3 * depth));
+            let out = if true {
+                run([next, 0, 0], &computer.program).0
             } else {
-                let next = have + ((i & 7) << (3 * depth));
-                search(computer, next, depth + 1, visited)
-                // but could be clever and jump to more than depth+1 because this is so may bits
+                // just for my input, to double check things
+                executefast(next)
             };
-            best = best.min(regval);
+            if out.len() < computer.program.len() {
+                continue;
+            } else {
+                assert_eq!(out.len(), computer.program.len());
+            }
+
+            if out[depth..] == computer.program[depth..] {
+                ret.push(next);
+            }
         }
     }
-
-    best
+    ret
 }
 
 fn solve(computer: &Computer) -> i64 {
-    search(computer, 0, 0, &mut HashSet::new())
+    // these arrive sorted, smallest first
+    let nums = search(computer, 0);
+    nums[0]
 }
 
 struct Computer {
