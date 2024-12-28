@@ -57,7 +57,7 @@ fn add(a: Pos, b: Pos) -> Pos {
 }
 
 // type State = (Pos, [bool; 2]);
-#[derive(Eq, PartialEq, Copy, Clone, Hash, Ord, PartialOrd)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Ord, PartialOrd, Debug)]
 struct State(Pos);
 // pose to cost
 type Distances = HashMap<State, usize>;
@@ -94,30 +94,35 @@ fn dijkstra(map: &Map, start: Pos) -> (Distances, Edges) {
     (distances, edges)
 }
 
+fn goal_path(edges: Edges, end: Pos) -> Vec<Pos> {
+    let mut ret = Vec::new();
+    let mut current = end;
+    while let Some(x) = edges.get(&State(current)) {
+        ret.push(current);
+        // this map is special and the path is trivially straight
+        assert_eq!(x.len(), 1);
+        current = x.iter().next().unwrap().0;
+    }
+    ret.push(current);
+    ret
+}
+
 fn saving_cheats(map: &Map, maxlen: i32) -> usize {
     let start = map.iter().find(|&(_, ch)| ch == 'S').unwrap().0;
-    let (distances, _) = dijkstra(&map, start);
-    assert_eq!(map.w(), map.h());
+    let end = map.iter().find(|&(_, ch)| ch == 'E').unwrap().0;
+    let (distances, edges) = dijkstra(&map, start);
+    let path = goal_path(edges, end);
+
     let mut saves = HashMap::new(); // to match with the example
     let mut good_cheat_count = 0;
-    for cheety in 1..(map.h()-1) {
-        for cheetx in 1..(map.w()-1) {
 
-            let mut trycheat = |p1: Pos, p2: Pos| {
-                if map.at(p1).is_none() || map.at(p2).is_none() {
-                    return;
-                }
-
-                if map[p1] == '#' || map[p2] == '#' {
-                    return;
-                }
-
-                // nodes are not walls, must have visited both
+    for (i, &p1) in path.iter().enumerate() {
+        for &p2 in path.iter().skip(i + 1) {
+            let pair_distance = (p1.0 - p2.0).abs() + (p1.1 - p2.1).abs();
+            if pair_distance <= maxlen {
                 let d1 = distances[&State(p1)] as i32;
                 let d2 = distances[&State(p2)] as i32;
-
-                let manh = (p1.0 - p2.0).abs() + (p1.1 - p2.1).abs();
-                let saved = (d1 - d2).abs() - manh;
+                let saved = (d1 - d2).abs() - pair_distance;
                 if saved > 0 {
                     *saves.entry(saved).or_insert(0) += 1;
                     if saved >= 100 {
@@ -127,30 +132,20 @@ fn saving_cheats(map: &Map, maxlen: i32) -> usize {
                         }
                     }
                 }
-            };
-
-            for qcheety in 1..(map.h()-1) {
-                for qcheetx in 1..(map.w()-1) {
-                    let dx = (cheetx - qcheetx).abs();
-                    let dy = (cheety - qcheety).abs();
-                    if dx + dy > maxlen {
-                        continue;
-                    }
-                    trycheat((cheetx, cheety), (qcheetx, qcheety));
-                }
             }
         }
     }
+
 
     if map.w() == 15 { // sample input
         let mut saves = saves.iter().collect::<Vec<_>>();
         saves.sort();
         for s in saves {
-            println!("{} cheats that save {} ps", s.1 / 2, s.0);
+            println!("{} cheats that save {} ps", s.1, s.0);
         }
     }
 
-    good_cheat_count / 2 // symmetric search (FIXME, extra work)
+    good_cheat_count
 }
 
 fn dump(map: &Map, tiles: &HashSet<Pos>) {
