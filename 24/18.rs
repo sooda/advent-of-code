@@ -1,53 +1,29 @@
 #![feature(let_chains)]
 
 use std::io::{self, BufRead};
-use std::ops::{Index, IndexMut};
-use std::collections::{HashMap, BinaryHeap};
+use std::collections::{HashSet, HashMap, BinaryHeap};
 use std::cmp::Reverse;
 
 type Data = bool;
-#[derive(Clone)]
-struct Map(Vec<Vec<Data>>);
 type Pos = (i32, i32);
-
-impl Map {
-    fn w(&self) -> i32 {
-        self.0[0].len() as i32
-    }
-    fn h(&self) -> i32 {
-        self.0.len() as i32
-    }
-    fn at(&self, p: Pos) -> Option<&Data> {
-        if p.0 >= 0 && p.0 < self.w() && p.1 >= 0 && p.1 < self.h() {
-            Some(&self.0[p.1 as usize][p.0 as usize])
-        } else {
-            None
-        }
-    }
-    fn at_mut(&mut self, p: Pos) -> Option<&mut Data> {
-        if p.0 >= 0 && p.0 < self.w() && p.1 >= 0 && p.1 < self.h() {
-            Some(&mut self.0[p.1 as usize][p.0 as usize])
-        } else {
-            None
-        }
-    }
-}
-
-impl Index<Pos> for Map {
-    type Output = Data;
-    fn index(&self, p: Pos) -> &Self::Output {
-        self.at(p).unwrap()
-    }
-}
-
-impl IndexMut<Pos> for Map {
-    fn index_mut(&mut self, p: Pos) -> &mut Data {
-        self.at_mut(p).unwrap()
-    }
-}
 
 fn add(a: Pos, b: Pos) -> Pos {
     (a.0 + b.0, a.1 + b.1)
+}
+
+struct Map(HashSet<Pos>, i32);
+
+impl Map {
+    fn new(positions: &[Pos], size: i32) -> Self {
+        Self(positions.iter().copied().collect(), size)
+    }
+    fn at(&self, p: Pos) -> Option<Data> {
+        if p.0 < 0 || p.0 >= self.1 || p.1 < 0 || p.1 >= self.1 {
+            None
+        } else {
+            Some(self.0.contains(&p))
+        }
+    }
 }
 
 type Distances = HashMap<Pos, usize>;
@@ -82,31 +58,34 @@ fn dijkstra(map: &Map, start: Pos, end: Pos) -> Distances {
 }
 
 fn steps_after_fall(positions: &[Pos], size: i32, simulation: usize) -> Option<usize> {
-    let mut map = Map(vec![vec![false; size as usize]; size as usize]);
-    for &p in positions.iter().take(simulation) {
-        if p.0 >= size || p.1 >= size {
-            // size 7 with real input
-            return None;
-        }
-        map[p] = true;
-    }
+    let map = Map::new(&positions[0..simulation.min(positions.len())], size);
     let end = (size - 1, size - 1);
     let distances = dijkstra(&map, (0, 0), end);
     distances.get(&end).map(|n| *n)
 }
 
 fn first_blocking_fall(positions: &[Pos], size: i32) -> Option<Pos> {
-    let mut map = Map(vec![vec![false; size as usize]; size as usize]);
     let end = (size - 1, size - 1);
-    for &p in positions {
-        map[p] = true;
-        let distances = dijkstra(&map, (0, 0), end);
-        if !distances.contains_key(&end) {
-            return Some(p);
+    if dijkstra(&Map::new(&positions, size), (0, 0), end).contains_key(&end) {
+        // sample input on big map
+        return None;
+    }
+    let mut lo = 0;
+    let mut hi = positions.len() - 1;
+    // binary search a space where under X a path is found and at or over X a path is not found
+    // YYYNNN
+    //   LH   at the edge, and lo = mid + 1 becomes the first N
+    while lo <= hi {
+        let mid = (lo + hi) / 2;
+        let map = Map::new(&positions[0..=mid], size);
+        let path_found = dijkstra(&map, (0, 0), end).contains_key(&end);
+        if path_found {
+            lo = mid + 1;
+        } else {
+            hi = mid - 1;
         }
     }
-    // sample input
-    None
+    Some(positions[lo])
 }
 
 fn parse(line: &str) -> Pos {
@@ -119,7 +98,8 @@ fn main() {
     let positions = io::stdin().lock().lines()
         .map(|line| parse(&line.unwrap()))
         .collect::<Vec<_>>();
-    println!("{:?}", steps_after_fall(&positions, 7, 12));
+    println!("sample map {:?}", steps_after_fall(&positions, 7, 12));
+    println!("sample map {:?}", first_blocking_fall(&positions, 7));
     println!("{:?}", steps_after_fall(&positions, 71, 1024));
     println!("{:?}", first_blocking_fall(&positions, 71));
 }
