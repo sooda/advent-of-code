@@ -12,9 +12,32 @@ fn invalid(a: i64) -> bool {
 }
 
 fn sum_of_invalid(ranges: &[(i64, i64)]) -> i64 {
-    ranges.into_iter()
-        .map(|&(a, b)| (a..=b).filter(|&x| invalid(x)).sum::<i64>())
-        .sum()
+    ranges.iter()
+        .flat_map(|&(a, b)| (a..=b))
+        .filter(|&x| invalid(x)).sum()
+}
+
+fn silly(a: i64) -> bool {
+    let digits = a.ilog10() + 1;
+    for div in 2..=digits {
+        if digits % div == 0 {
+            let size = 10i64.pow(digits / div);
+            let repeat = a % size;
+            let all_repeat = (1..div)
+                .scan(a, |ai, _| { *ai /= size; Some(*ai) })
+                .all(|ai| ai % size == repeat);
+            if all_repeat {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn sum_of_silly(ranges: &[(i64, i64)]) -> i64 {
+    ranges.iter()
+        .flat_map(|&(a, b)| (a..=b))
+        .filter(|&x| silly(x)).sum()
 }
 
 fn parse(file: &str) -> Vec<(i64, i64)> {
@@ -30,4 +53,5 @@ fn main() {
     io::stdin().read_to_string(&mut file).unwrap();
     let ranges = parse(file.trim());
     println!("{:?}", sum_of_invalid(&ranges));
+    println!("{:?}", sum_of_silly(&ranges));
 }
