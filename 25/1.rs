@@ -1,29 +1,21 @@
 use std::io::{self, BufRead};
+use std::iter::repeat;
 
 fn total_clicks(instructions: &[i32]) -> usize {
-    let mut dial = 50;
-    let mut zeros = 0;
-    for &step in instructions {
-        for _ in 0..step.abs() {
-            dial = (dial + step.signum() + 1000) % 100;
-            if dial == 0 {
-                zeros += 1;
-            }
-        }
-    }
-    zeros
+    instructions.iter()
+        .flat_map(|step| repeat(step.signum()).take(step.abs() as usize))
+        .fold((50, 0), |(dial, zeros), step| {
+            let next = (dial + step + 1000) % 100;
+            (next, zeros + (if next == 0 { 1 } else { 0 }))
+        }).1
 }
 
 fn total_zeros(instructions: &[i32]) -> usize {
-    let mut dial = 50;
-    let mut zeros = 0;
-    for step in instructions {
-        dial = (dial + step + 1000) % 100;
-        if dial == 0 {
-            zeros += 1;
-        }
-    }
-    zeros
+    instructions.iter()
+        .fold((50, 0), |(dial, zeros), step| {
+            let next = (dial + step + 1000) % 100;
+            (next, zeros + (if next == 0 { 1 } else { 0 }))
+        }).1
 }
 
 fn parse(inp: &str) -> i32 {
