@@ -27,10 +27,36 @@ fn forklift_accessible(map: &[Vec<char>]) -> usize {
         .count()
 }
 
+fn remove_paper(map: &Vec<Vec<char>>) -> Vec<Vec<char>> {
+    let mut next = map.clone();
+    let w = map[0].len();
+    let h = map.len();
+    (0..h)
+        .flat_map(|y| (0..w).map(move |x| (x, y)))
+        .filter(|&(x, y)| map[y][x] == '@')
+        .filter(|&(x, y)| paper_rolls(map, (x as i32, y as i32)) < 4)
+        .for_each(|(x, y)| next[y][x] = '.');
+    next
+}
+
+fn removable_paper(mut map: Vec<Vec<char>>) -> usize {
+    let mut tot = 0;
+    loop {
+        let n = forklift_accessible(&map);
+        tot += n;
+        if n == 0 {
+            break;
+        }
+        map = remove_paper(&map);
+    }
+    tot
+}
+
 fn main() {
     let map: Vec<Vec<char>> = io::stdin().lock().lines()
         .map(
             |line| line.unwrap().chars().collect()
             ).collect();
     println!("{}", forklift_accessible(&map));
+    println!("{}", removable_paper(map));
 }
