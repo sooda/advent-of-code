@@ -1,4 +1,5 @@
 use std::io::{self, Read};
+use std::iter;
 
 fn invalid(a: i64) -> bool {
     let digits = a.ilog10() + 1;
@@ -23,8 +24,8 @@ fn silly(a: i64) -> bool {
         if digits % div == 0 {
             let size = 10i64.pow(digits / div);
             let repeat = a % size;
-            let all_repeat = (1..div)
-                .scan(a, |ai, _| { *ai /= size; Some(*ai) })
+            let all_repeat = iter::successors(Some(a / size), |&ai| Some(ai / size))
+                .take((div - 1) as usize)
                 .all(|ai| ai % size == repeat);
             if all_repeat {
                 return true;
