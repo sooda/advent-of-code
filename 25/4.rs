@@ -17,37 +17,47 @@ fn paper_rolls(map: &[Vec<char>], pos: (i32, i32)) -> usize {
     delta.into_iter().filter(|&&d| paper(map, pos, d)).count()
 }
 
-fn forklift_accessible(map: &[Vec<char>]) -> usize {
+fn good_positions(map: &[Vec<char>]) -> impl Iterator<Item=(usize, usize)> + use<'_> {
     let w = map[0].len();
     let h = map.len();
     (0..h)
-        .flat_map(|y| (0..w).map(move |x| (x, y)))
+        .flat_map(move |y| (0..w).map(move |x| (x, y)))
         .filter(|&(x, y)| map[y][x] == '@')
         .filter(|&(x, y)| paper_rolls(map, (x as i32, y as i32)) < 4)
-        .count()
 }
 
-fn remove_paper(map: &Vec<Vec<char>>) -> Vec<Vec<char>> {
+fn forklift_accessible(map: &[Vec<char>]) -> usize {
+    good_positions(map).count()
+}
+
+fn remove_paper(map: &Vec<Vec<char>>) -> (Vec<Vec<char>>, usize) {
     let mut next = map.clone();
-    let w = map[0].len();
-    let h = map.len();
-    (0..h)
-        .flat_map(|y| (0..w).map(move |x| (x, y)))
-        .filter(|&(x, y)| map[y][x] == '@')
-        .filter(|&(x, y)| paper_rolls(map, (x as i32, y as i32)) < 4)
-        .for_each(|(x, y)| next[y][x] = '.');
-    next
+    let n = good_positions(map)
+        .map(|(x, y)| next[y][x] = '.')
+        .count();
+    (next, n)
 }
 
 fn removable_paper(mut map: Vec<Vec<char>>) -> usize {
     let mut tot = 0;
-    loop {
-        let n = forklift_accessible(&map);
-        tot += n;
-        if n == 0 {
-            break;
+    if true {
+        let remove = |m| {
+            let (next, n) = remove_paper(&m);
+            if n > 0 { Some((next, n)) } else { None }
+        };
+        while let Some((next, n)) = remove(map) {
+            tot += n;
+            map = next;
         }
-        map = remove_paper(&map);
+    } else { // equivalent
+        loop {
+            let (next, n) = remove_paper(&map);
+            if n == 0 {
+                break;
+            }
+            tot += n;
+            map = next;
+        }
     }
     tot
 }
