@@ -17,10 +17,22 @@ fn find_paths<'a>(net: &'a Net, node: &'a str, end: &str, paths: &mut HashMap<&'
     }
 }
 
+fn total_paths_between(net: &Net, start: &str, end: &str) -> usize {
+    find_paths(net, start, end, &mut HashMap::new())
+}
+
 fn total_paths(net: &Net) -> usize {
-    let mut paths = HashMap::new();
-    find_paths(net, "you", "out", &mut paths);
-    *paths.get("you").expect("no paths to out?")
+    total_paths_between(net, "you", "out")
+}
+
+fn total_svr_paths(net: &Net) -> usize {
+    let svr_dac = total_paths_between(net, "svr", "dac");
+    let svr_fft = total_paths_between(net, "svr", "fft");
+    let dac_fft = total_paths_between(net, "dac", "fft");
+    let fft_dac = total_paths_between(net, "fft", "dac");
+    let fft_out = total_paths_between(net, "fft", "out");
+    let dac_out = total_paths_between(net, "dac", "out");
+    svr_dac * dac_fft * fft_out + svr_fft * fft_dac * dac_out
 }
 
 fn parse(line: &str) -> (String, Vec<String>) {
@@ -34,4 +46,5 @@ fn main() {
         .map(|line| parse(&line.unwrap())
             ).collect();
     println!("{}", total_paths(&net));
+    println!("{}", total_svr_paths(&net));
 }
