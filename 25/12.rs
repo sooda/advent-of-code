@@ -9,10 +9,15 @@ struct Tree {
 }
 
 fn fit(presents: &[Present], tree: &Tree) -> bool {
-    presents.iter()
+    let cell_count = presents.iter()
         .zip(tree.quantities.iter())
         .map(|(p, n)| n * p.len())
-        .sum::<usize>() as i32 <= tree.size.0 * tree.size.1
+        .sum::<usize>() as i32;
+    let opportunistic = cell_count <= tree.size.0 * tree.size.1;
+    let box_count = tree.quantities.iter().sum::<usize>() as i32;
+    let conservative = box_count <= (tree.size.0 / 3) * (tree.size.1 / 3);
+    assert_eq!(opportunistic, conservative);
+    opportunistic
 }
 
 fn regions_fit(presents: &[Present], trees: &[Tree]) -> usize {
